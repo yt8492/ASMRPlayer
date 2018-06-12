@@ -8,6 +8,8 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
+import java.util.List;
+
 
 /**
  * A simple {@link Fragment} subclass.
@@ -59,6 +61,7 @@ public class AlbumListFragment extends Fragment {
             mParam1 = getArguments().getString(ARG_PARAM1);
             mParam2 = getArguments().getString(ARG_PARAM2);
         }
+        final List<Album> albums = Album.getItems(this.getContext());
 
 
     }
