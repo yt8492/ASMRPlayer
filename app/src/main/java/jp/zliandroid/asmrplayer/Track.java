@@ -12,16 +12,16 @@ import java.util.List;
 
 public class Track {
 
-    public long     id;             //コンテントプロバイダに登録されたID
-    public long     albumId;        //同じくトラックのアルバムのID
-    public long     artistId;       //同じくトラックのアーティストのID
-    public String path;           //実データのPATH
-    public String title;          //トラックタイトル
-    public String album;          //アルバムタイトル
-    public String artist;         //アーティスト名
-    public Uri uri;            // URI
-    public long     duration;       // 再生時間(ミリ秒)
-    public int      trackNo;        // アルバムのトラックナンバ
+    private long id;             //コンテントプロバイダに登録されたID
+    private long albumId;        //同じくトラックのアルバムのID
+    private long artistId;       //同じくトラックのアーティストのID
+    private String path;           //実データのPATH
+    private String title;          //トラックタイトル
+    private String album;          //アルバムタイトル
+    private String artist;         //アーティスト名
+    private Uri uri;            // URI
+    private long duration;       // 再生時間(ミリ秒)
+    private int trackNo;        // アルバムのトラックナンバ
 
     public static final String[] COLUMNS = {
             MediaStore.Audio.Media._ID,
@@ -107,4 +107,43 @@ public class Track {
         return track;
     }
 
+    public long getId() {
+        return id;
+    }
+
+    public long getAlbumId() {
+        return albumId;
+    }
+
+    public long getArtistId() {
+        return artistId;
+    }
+
+    public String getPath() {
+        return path;
+    }
+
+    public String getAlbum() {
+        return album;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public String getArtist() {
+        return artist;
+    }
+
+    public Uri getUri() {
+        return uri;
+    }
+
+    public long getDuration() {
+        return duration;
+    }
+
+    public int getTrackNo() {
+        return trackNo;
+    }
 }
