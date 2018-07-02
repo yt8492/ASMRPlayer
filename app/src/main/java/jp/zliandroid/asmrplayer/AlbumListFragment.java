@@ -4,9 +4,20 @@ import android.content.Context;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
+import android.support.v7.widget.AppCompatButton;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
+
+import jp.zliandroid.asmrplayer.R;
+
+import com.mobsandgeeks.saripaar.ValidationError;
+import com.mobsandgeeks.saripaar.Validator;
+import com.mobsandgeeks.saripaar.annotation.ConfirmPassword;
+import com.mobsandgeeks.saripaar.annotation.Email;
+import com.mobsandgeeks.saripaar.annotation.NotEmpty;
+import com.mobsandgeeks.saripaar.annotation.Password;
 
 import java.util.List;
 
@@ -19,7 +30,7 @@ import java.util.List;
  * Use the {@link AlbumListFragment#newInstance} factory method to
  * create an instance of this fragment.
  */
-public class AlbumListFragment extends Fragment {
+public class AlbumListFragment extends Fragment implements Validator.ValidationListener {
     // TODO: Rename parameter arguments, choose names that match
     // the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
     private static final String ARG_PARAM1 = "param1";
@@ -31,10 +42,13 @@ public class AlbumListFragment extends Fragment {
 
     private OnFragmentInteractionListener mListener;
 
+    @NotEmpty
+    private EditText editText;
+
+    Validator validator;
+
     public AlbumListFragment() {
         // Required empty public constructor
-
-
     }
 
     /**
@@ -55,6 +69,20 @@ public class AlbumListFragment extends Fragment {
     }
 
     @Override
+    public void onValidationSucceeded() {
+
+    }
+
+    @Override
+    public void onValidationFailed(List<ValidationError> errors) {
+
+    }
+
+    public interface FragmentListener{
+        public void onClickFragmentButton();
+    }
+
+    @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         if (getArguments() != null) {
@@ -62,6 +90,9 @@ public class AlbumListFragment extends Fragment {
             mParam2 = getArguments().getString(ARG_PARAM2);
         }
         final List<Album> albums = Album.getItems(this.getContext());
+        validator = new Validator(this);
+        validator.setValidationListener(this);
+        validator.validate();
 
 
     }
@@ -71,6 +102,20 @@ public class AlbumListFragment extends Fragment {
                              Bundle savedInstanceState) {
         // Inflate the layout for this fragment
         return inflater.inflate(R.layout.fragment_album_list, container, false);
+    }
+
+    @Override
+    public void onViewCreated(final View view, Bundle savedInstanceState){
+        super.onViewCreated(view,savedInstanceState);
+        AppCompatButton button = view.findViewById(R.id.fragment_button);
+        button.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                editText = (EditText)view.findViewById(R.id.edit_text);
+                String editedText = editText.getText().toString();
+            }
+        });
+
     }
 
     // TODO: Rename method, update argument and hook method into UI event

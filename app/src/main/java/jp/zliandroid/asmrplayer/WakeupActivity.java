@@ -30,7 +30,8 @@ import android.view.MenuItem;
 import android.widget.TabHost;
 
 public class WakeupActivity extends FragmentActivity implements NavigationView.OnNavigationItemSelectedListener,
-        PlayListFragment.OnFragmentInteractionListener,AlbumListFragment.OnFragmentInteractionListener,FilerFragment.OnFragmentInteractionListener {
+        PlayListFragment.OnFragmentInteractionListener,AlbumListFragment.OnFragmentInteractionListener,FilerFragment.OnFragmentInteractionListener,
+        AlbumListFragment.FragmentListener{
 
     private static final String TAG = "Storage Permission";
     private int REQUEST_CODE_STORAGE_PERMISSION = 0x01;
@@ -172,5 +173,10 @@ public class WakeupActivity extends FragmentActivity implements NavigationView.O
                 },
                 REQUEST_CODE_STORAGE_PERMISSION);
         return;
+    }
+
+    @Override
+    public void onClickFragmentButton() {
+
     }
 }

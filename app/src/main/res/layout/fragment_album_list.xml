@@ -5,10 +5,14 @@
     android:layout_height="match_parent"
     tools:context=".AlbumListFragment">
 
-    <ListView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
-        android:id = "@+id/list_album"
-    </ListView>
+    <EditText
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/edit_text"/>
+    <android.support.v7.widget.AppCompatButton
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/fragment_button"/>
+
 
 </FrameLayout>
