@@ -1,6 +1,7 @@
 package com.yt8492.asmrplayer.data.repository
 
 import android.content.Context
+import android.net.Uri
 import android.provider.MediaStore
 import com.yt8492.asmrplayer.data.model.Track
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +41,10 @@ class TrackRepositoryImpl(
                 val artist = cursor.getString(artistColumn).orEmpty()
                 val durationMs = cursor.getLong(durationColumn)
                 val trackNumber = cursor.getInt(trackNumberColumn)
+                val contentUri = Uri.withAppendedPath(
+                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                    id.toString(),
+                )
                 tracks.add(
                     Track(
                         id = id,
@@ -47,6 +52,7 @@ class TrackRepositoryImpl(
                         artist = artist,
                         durationMs = durationMs,
                         trackNumber = trackNumber,
+                        uri = contentUri,
                     ),
                 )
             }

@@ -12,9 +12,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.yt8492.asmrplayer.data.model.Album
+import com.yt8492.asmrplayer.data.model.Track
 import com.yt8492.asmrplayer.ui.theme.ASMRPlayerTheme
 import com.yt8492.asmrplayer.ui.album.AlbumListRoute
 import com.yt8492.asmrplayer.ui.track.TrackListRoute
+import com.yt8492.asmrplayer.ui.player.PlayerRoute
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -31,21 +33,46 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun ASMRPlayerApp() {
     var selectedAlbum by remember { mutableStateOf<Album?>(null) }
+    var playerSession by remember { mutableStateOf<PlayerSession?>(null) }
 
-    if (selectedAlbum == null) {
-        AlbumListRoute(
-            modifier = Modifier.fillMaxSize(),
-            onAlbumClick = { album ->
-                selectedAlbum = album
-            },
-        )
-    } else {
-        val album = selectedAlbum!!
-        TrackListRoute(
-            modifier = Modifier.fillMaxSize(),
-            albumId = album.id,
-            albumTitle = album.title,
-            onBack = { selectedAlbum = null },
-        )
+    when {
+        playerSession != null -> {
+            val session = playerSession!!
+            PlayerRoute(
+                modifier = Modifier.fillMaxSize(),
+                tracks = session.tracks,
+                startIndex = session.startIndex,
+                albumTitle = session.album.title,
+                onBack = { playerSession = null },
+            )
+        }
+
+        selectedAlbum != null -> {
+            val album = selectedAlbum!!
+            TrackListRoute(
+                modifier = Modifier.fillMaxSize(),
+                albumId = album.id,
+                albumTitle = album.title,
+                onBack = { selectedAlbum = null },
+                onTrackClick = { tracks, index ->
+                    playerSession = PlayerSession(album, tracks, index)
+                },
+            )
+        }
+
+        else -> {
+            AlbumListRoute(
+                modifier = Modifier.fillMaxSize(),
+                onAlbumClick = { album ->
+                    selectedAlbum = album
+                },
+            )
+        }
     }
 }
+
+private data class PlayerSession(
+    val album: Album,
+    val tracks: List<Track>,
+    val startIndex: Int,
+)

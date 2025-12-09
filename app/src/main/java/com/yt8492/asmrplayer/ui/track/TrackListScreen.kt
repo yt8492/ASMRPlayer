@@ -13,7 +13,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -54,6 +55,7 @@ fun TrackListRoute(
     albumId: Long,
     albumTitle: String,
     onBack: () -> Unit,
+    onTrackClick: (tracks: List<Track>, index: Int) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: TrackListViewModel = viewModel(
         factory = TrackListViewModel.provideFactory(LocalContext.current, albumId),
@@ -95,6 +97,7 @@ fun TrackListRoute(
         onRequestPermission = { permissionLauncher.launch(permission) },
         onRetry = viewModel::loadTracks,
         onBack = onBack,
+        onTrackClick = { index -> onTrackClick(uiState.tracks, index) },
         modifier = modifier,
     )
 }
@@ -108,6 +111,7 @@ fun TrackListScreen(
     onRequestPermission: () -> Unit,
     onRetry: () -> Unit,
     onBack: () -> Unit,
+    onTrackClick: (index: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -160,6 +164,7 @@ fun TrackListScreen(
 
                 else -> TrackList(
                     tracks = uiState.tracks,
+                    onTrackClick = onTrackClick,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -218,21 +223,23 @@ private fun EmptyTrackList(
 @Composable
 private fun TrackList(
     tracks: List<Track>,
+    onTrackClick: (index: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
         modifier = modifier,
     ) {
-        items(
+        itemsIndexed(
             items = tracks,
-            key = { it.id },
-        ) { track ->
+            key = { _, track -> track.id },
+        ) { index, track ->
             val displayTrackNumber = if (track.trackNumber > 0) {
                 track.trackNumber % 1000
             } else {
                 null
             }
             ListItem(
+                modifier = Modifier.clickable { onTrackClick(index) },
                 headlineContent = {
                     Text(
                         text = track.title,
@@ -289,6 +296,7 @@ private fun TrackListScreenPreview() {
                     artist = "サンプルアーティスト",
                     durationMs = 210_000,
                     trackNumber = 1,
+                    uri = android.net.Uri.EMPTY,
                 ),
             ),
         ),
@@ -297,5 +305,6 @@ private fun TrackListScreenPreview() {
         onRequestPermission = {},
         onRetry = {},
         onBack = {},
+        onTrackClick = {},
     )
 }

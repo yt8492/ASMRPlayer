@@ -10,4 +10,9 @@
     <string name="track_list_empty">このアルバムのトラックが見つかりません</string>
     <string name="track_list_retry">再読み込み</string>
     <string name="track_list_back">戻る</string>
+    <string name="player_no_track">トラックがありません</string>
+    <string name="player_play">再生</string>
+    <string name="player_pause">一時停止</string>
+    <string name="player_prev">前の曲</string>
+    <string name="player_next">次の曲</string>
 </resources>
