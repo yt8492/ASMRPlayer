@@ -7,4 +7,7 @@
     <string name="album_list_empty">アルバムが見つかりません</string>
     <string name="album_list_retry">再読み込み</string>
     <string name="album_track_count">%1$d曲</string>
+    <string name="track_list_empty">このアルバムのトラックが見つかりません</string>
+    <string name="track_list_retry">再読み込み</string>
+    <string name="track_list_back">戻る</string>
 </resources>

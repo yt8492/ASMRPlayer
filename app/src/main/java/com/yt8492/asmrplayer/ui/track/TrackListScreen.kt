@@ -1,4 +1,4 @@
-package com.yt8492.asmrplayer.ui.album
+package com.yt8492.asmrplayer.ui.track
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -8,17 +8,20 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -43,14 +46,17 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yt8492.asmrplayer.R
-import com.yt8492.asmrplayer.data.model.Album
+import com.yt8492.asmrplayer.data.model.Track
+import java.util.concurrent.TimeUnit
 
 @Composable
-fun AlbumListRoute(
+fun TrackListRoute(
+    albumId: Long,
+    albumTitle: String,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    onAlbumClick: (Album) -> Unit,
-    viewModel: AlbumListViewModel = viewModel(
-        factory = AlbumListViewModel.provideFactory(LocalContext.current),
+    viewModel: TrackListViewModel = viewModel(
+        factory = TrackListViewModel.provideFactory(LocalContext.current, albumId),
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -72,34 +78,36 @@ fun AlbumListRoute(
     ) { isGranted ->
         hasPermission = isGranted
         if (isGranted) {
-            viewModel.loadAlbums()
+            viewModel.loadTracks()
         }
     }
 
-    LaunchedEffect(hasPermission) {
+    LaunchedEffect(hasPermission, albumId) {
         if (hasPermission) {
-            viewModel.loadAlbums()
+            viewModel.loadTracks()
         }
     }
 
-    AlbumListScreen(
+    TrackListScreen(
         uiState = uiState,
+        albumTitle = albumTitle,
         hasPermission = hasPermission,
         onRequestPermission = { permissionLauncher.launch(permission) },
-        onRetry = viewModel::loadAlbums,
-        onAlbumClick = onAlbumClick,
+        onRetry = viewModel::loadTracks,
+        onBack = onBack,
         modifier = modifier,
     )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AlbumListScreen(
-    uiState: AlbumListUiState,
+fun TrackListScreen(
+    uiState: TrackListUiState,
+    albumTitle: String,
     hasPermission: Boolean,
     onRequestPermission: () -> Unit,
     onRetry: () -> Unit,
-    onAlbumClick: (Album) -> Unit,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -114,7 +122,15 @@ fun AlbumListScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text(text = stringResource(id = R.string.album_list_title)) },
+                title = { Text(text = albumTitle) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(id = R.string.track_list_back),
+                        )
+                    }
+                },
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -137,14 +153,13 @@ fun AlbumListScreen(
                     CircularProgressIndicator()
                 }
 
-                uiState.albums.isEmpty() -> EmptyAlbumList(
+                uiState.tracks.isEmpty() -> EmptyTrackList(
                     onRetry = onRetry,
                     modifier = Modifier.align(Alignment.Center),
                 )
 
-                else -> AlbumList(
-                    albums = uiState.albums,
-                    onAlbumClick = onAlbumClick,
+                else -> TrackList(
+                    tracks = uiState.tracks,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -179,7 +194,7 @@ private fun PermissionRequest(
 }
 
 @Composable
-private fun EmptyAlbumList(
+private fun EmptyTrackList(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -191,49 +206,63 @@ private fun EmptyAlbumList(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = stringResource(id = R.string.album_list_empty),
+            text = stringResource(id = R.string.track_list_empty),
             style = MaterialTheme.typography.bodyLarge,
         )
         Button(onClick = onRetry) {
-            Text(text = stringResource(id = R.string.album_list_retry))
+            Text(text = stringResource(id = R.string.track_list_retry))
         }
     }
 }
 
 @Composable
-private fun AlbumList(
-    albums: List<Album>,
-    onAlbumClick: (Album) -> Unit,
+private fun TrackList(
+    tracks: List<Track>,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
         modifier = modifier,
     ) {
         items(
-            items = albums,
+            items = tracks,
             key = { it.id },
-        ) { album ->
+        ) { track ->
+            val displayTrackNumber = if (track.trackNumber > 0) {
+                track.trackNumber % 1000
+            } else {
+                null
+            }
             ListItem(
-                modifier = Modifier.clickable { onAlbumClick(album) },
                 headlineContent = {
                     Text(
-                        text = album.title,
+                        text = track.title,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 },
                 supportingContent = {
                     Text(
-                        text = album.artist,
+                        text = track.artist,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 },
                 trailingContent = {
-                    Text(
-                        text = stringResource(id = R.string.album_track_count, album.trackCount),
-                        style = MaterialTheme.typography.labelMedium,
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        displayTrackNumber?.let { number ->
+                            Text(
+                                text = number.toString(),
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        }
+                        Text(
+                            text = formatDuration(track.durationMs),
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
                 },
             )
             HorizontalDivider()
@@ -241,18 +270,32 @@ private fun AlbumList(
     }
 }
 
+private fun formatDuration(durationMs: Long): String {
+    val totalSeconds = TimeUnit.MILLISECONDS.toSeconds(durationMs)
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return "%d:%02d".format(minutes, seconds)
+}
+
 @Preview(showBackground = true)
 @Composable
-private fun AlbumListScreenPreview() {
-    AlbumListScreen(
-        uiState = AlbumListUiState(
-            albums = listOf(
-                Album(id = 1, title = "サンプルアルバム", artist = "サンプルアーティスト", trackCount = 10),
+private fun TrackListScreenPreview() {
+    TrackListScreen(
+        uiState = TrackListUiState(
+            tracks = listOf(
+                Track(
+                    id = 1,
+                    title = "サンプルトラック",
+                    artist = "サンプルアーティスト",
+                    durationMs = 210_000,
+                    trackNumber = 1,
+                ),
             ),
         ),
+        albumTitle = "サンプルアルバム",
         hasPermission = true,
         onRequestPermission = {},
         onRetry = {},
-        onAlbumClick = {},
+        onBack = {},
     )
 }
