@@ -2,6 +2,7 @@ package com.yt8492.asmrplayer.ui.track
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -12,11 +13,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Album
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -38,8 +41,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -48,6 +54,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yt8492.asmrplayer.R
 import com.yt8492.asmrplayer.data.model.Track
+import coil.compose.AsyncImage
 import java.util.concurrent.TimeUnit
 
 @Composable
@@ -56,6 +63,7 @@ fun TrackListRoute(
     albumTitle: String,
     onBack: () -> Unit,
     onTrackClick: (tracks: List<Track>, index: Int) -> Unit,
+    albumArtUri: Uri?,
     modifier: Modifier = Modifier,
     viewModel: TrackListViewModel = viewModel(
         factory = TrackListViewModel.provideFactory(LocalContext.current, albumId),
@@ -97,6 +105,7 @@ fun TrackListRoute(
         onRequestPermission = { permissionLauncher.launch(permission) },
         onRetry = viewModel::loadTracks,
         onBack = onBack,
+        albumArtUri = albumArtUri,
         onTrackClick = { index -> onTrackClick(uiState.tracks, index) },
         modifier = modifier,
     )
@@ -111,6 +120,7 @@ fun TrackListScreen(
     onRequestPermission: () -> Unit,
     onRetry: () -> Unit,
     onBack: () -> Unit,
+    albumArtUri: Uri?,
     onTrackClick: (index: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -164,6 +174,7 @@ fun TrackListScreen(
 
                 else -> TrackList(
                     tracks = uiState.tracks,
+                    albumArtUri = albumArtUri,
                     onTrackClick = onTrackClick,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -223,12 +234,21 @@ private fun EmptyTrackList(
 @Composable
 private fun TrackList(
     tracks: List<Track>,
+    albumArtUri: Uri?,
     onTrackClick: (index: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
         modifier = modifier,
     ) {
+        item {
+            AlbumArt(
+                albumArtUri = albumArtUri,
+                modifier = Modifier
+                    .padding(horizontal = 24.dp, vertical = 16.dp)
+                    .fillMaxWidth(),
+            )
+        }
         itemsIndexed(
             items = tracks,
             key = { _, track -> track.id },
@@ -277,6 +297,24 @@ private fun TrackList(
     }
 }
 
+@Composable
+private fun AlbumArt(
+    albumArtUri: Uri?,
+    modifier: Modifier = Modifier,
+) {
+    AsyncImage(
+        model = albumArtUri,
+        contentDescription = null,
+        modifier = modifier
+            .aspectRatio(1f)
+            .clip(MaterialTheme.shapes.medium),
+        contentScale = ContentScale.Crop,
+        placeholder = rememberVectorPainter(Icons.Filled.Album),
+        error = rememberVectorPainter(Icons.Filled.Album),
+        fallback = rememberVectorPainter(Icons.Filled.Album),
+    )
+}
+
 private fun formatDuration(durationMs: Long): String {
     val totalSeconds = TimeUnit.MILLISECONDS.toSeconds(durationMs)
     val minutes = totalSeconds / 60
@@ -305,6 +343,7 @@ private fun TrackListScreenPreview() {
         onRequestPermission = {},
         onRetry = {},
         onBack = {},
+        albumArtUri = Uri.EMPTY,
         onTrackClick = {},
     )
 }

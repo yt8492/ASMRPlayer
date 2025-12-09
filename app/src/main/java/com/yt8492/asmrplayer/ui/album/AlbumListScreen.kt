@@ -3,8 +3,11 @@ package com.yt8492.asmrplayer.ui.album
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,9 +15,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Album
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,16 +39,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yt8492.asmrplayer.R
 import com.yt8492.asmrplayer.data.model.Album
+import coil.compose.AsyncImage
 
 @Composable
 fun AlbumListRoute(
@@ -215,6 +224,12 @@ private fun AlbumList(
         ) { album ->
             ListItem(
                 modifier = Modifier.clickable { onAlbumClick(album) },
+                leadingContent = {
+                    AlbumArt(
+                        albumArtUri = album.albumArtUri,
+                        contentDescription = album.title,
+                    )
+                },
                 headlineContent = {
                     Text(
                         text = album.title,
@@ -241,13 +256,32 @@ private fun AlbumList(
     }
 }
 
+@Composable
+private fun AlbumArt(
+    albumArtUri: Uri?,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+) {
+    AsyncImage(
+        model = albumArtUri,
+        contentDescription = contentDescription,
+        modifier = modifier
+            .size(56.dp)
+            .clip(MaterialTheme.shapes.medium),
+        contentScale = ContentScale.Crop,
+        placeholder = rememberVectorPainter(Icons.Filled.Album),
+        error = rememberVectorPainter(Icons.Filled.Album),
+        fallback = rememberVectorPainter(Icons.Filled.Album),
+    )
+}
+
 @Preview(showBackground = true)
 @Composable
 private fun AlbumListScreenPreview() {
     AlbumListScreen(
         uiState = AlbumListUiState(
             albums = listOf(
-                Album(id = 1, title = "サンプルアルバム", artist = "サンプルアーティスト", trackCount = 10),
+                Album(id = 1, title = "サンプルアルバム", artist = "サンプルアーティスト", trackCount = 10, albumArtUri = Uri.EMPTY),
             ),
         ),
         hasPermission = true,

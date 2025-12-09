@@ -1,6 +1,8 @@
 package com.yt8492.asmrplayer.ui.player
 
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,12 +11,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Album
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,8 +38,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.MediaItem
@@ -45,12 +53,14 @@ import com.yt8492.asmrplayer.R
 import com.yt8492.asmrplayer.data.model.Track
 import kotlinx.coroutines.delay
 import java.util.concurrent.TimeUnit
+import coil.compose.AsyncImage
 
 @Composable
 fun PlayerRoute(
     tracks: List<Track>,
     startIndex: Int,
     albumTitle: String,
+    albumArtUri: Uri?,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -91,6 +101,7 @@ fun PlayerRoute(
         player = player,
         tracks = tracks,
         albumTitle = albumTitle,
+        albumArtUri = albumArtUri,
         onBack = onBack,
         modifier = modifier,
     )
@@ -102,6 +113,7 @@ fun PlayerScreen(
     player: Player,
     tracks: List<Track>,
     albumTitle: String,
+    albumArtUri: Uri?,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -180,6 +192,20 @@ fun PlayerScreen(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+
+            AsyncImage(
+                model = albumArtUri,
+                contentDescription = albumTitle,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .padding(horizontal = 12.dp)
+                    .clip(RoundedCornerShape(16.dp)),
+                contentScale = ContentScale.Crop,
+                placeholder = rememberVectorPainter(Icons.Filled.Album),
+                error = rememberVectorPainter(Icons.Filled.Album),
+                fallback = rememberVectorPainter(Icons.Filled.Album),
+            )
 
             Column(
                 modifier = Modifier.fillMaxWidth(),

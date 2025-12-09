@@ -1,6 +1,8 @@
 package com.yt8492.asmrplayer.data.repository
 
 import android.content.Context
+import android.content.ContentUris
+import android.net.Uri
 import android.provider.MediaStore
 import com.yt8492.asmrplayer.data.model.Album
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +17,7 @@ class AlbumRepositoryImpl(
             MediaStore.Audio.Albums.ALBUM,
             MediaStore.Audio.Albums.ARTIST,
             MediaStore.Audio.Albums.NUMBER_OF_SONGS,
+            MediaStore.Audio.Albums.ALBUM_ART,
         )
         val sortOrder = "${MediaStore.Audio.Albums.ALBUM} COLLATE NOCASE ASC"
         val contentResolver = context.contentResolver
@@ -35,12 +38,24 @@ class AlbumRepositoryImpl(
                 val title = cursor.getString(albumColumn).orEmpty()
                 val artist = cursor.getString(artistColumn).orEmpty()
                 val trackCount = cursor.getInt(trackCountColumn)
+                val albumArtUri = runCatching {
+                    val albumArt = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.ALBUM_ART))
+                    if (albumArt != null) {
+                        Uri.parse(albumArt)
+                    } else {
+                        ContentUris.withAppendedId(
+                            Uri.parse("content://media/external/audio/albumart"),
+                            id,
+                        )
+                    }
+                }.getOrNull()
                 albums.add(
                     Album(
                         id = id,
                         title = title,
                         artist = artist,
                         trackCount = trackCount,
+                        albumArtUri = albumArtUri,
                     ),
                 )
             }

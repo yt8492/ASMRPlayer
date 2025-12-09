@@ -13,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.yt8492.asmrplayer.data.model.Album
 import com.yt8492.asmrplayer.data.model.Track
+import android.net.Uri
 import com.yt8492.asmrplayer.ui.theme.ASMRPlayerTheme
 import com.yt8492.asmrplayer.ui.album.AlbumListRoute
 import com.yt8492.asmrplayer.ui.track.TrackListRoute
@@ -43,6 +44,7 @@ private fun ASMRPlayerApp() {
                 tracks = session.tracks,
                 startIndex = session.startIndex,
                 albumTitle = session.album.title,
+                albumArtUri = session.albumArtUri,
                 onBack = { playerSession = null },
             )
         }
@@ -54,8 +56,9 @@ private fun ASMRPlayerApp() {
                 albumId = album.id,
                 albumTitle = album.title,
                 onBack = { selectedAlbum = null },
+                albumArtUri = album.albumArtUri,
                 onTrackClick = { tracks, index ->
-                    playerSession = PlayerSession(album, tracks, index)
+                    playerSession = PlayerSession(album, tracks, index, album.albumArtUri)
                 },
             )
         }
@@ -75,4 +78,5 @@ private data class PlayerSession(
     val album: Album,
     val tracks: List<Track>,
     val startIndex: Int,
+    val albumArtUri: Uri?,
 )
