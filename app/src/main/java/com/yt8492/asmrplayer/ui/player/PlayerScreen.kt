@@ -2,24 +2,26 @@ package com.yt8492.asmrplayer.ui.player
 
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.filled.Album
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -50,21 +52,26 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.yt8492.asmrplayer.R
-import com.yt8492.asmrplayer.data.model.Track
 import kotlinx.coroutines.delay
 import java.util.concurrent.TimeUnit
 import coil.compose.AsyncImage
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun PlayerRoute(
-    tracks: List<Track>,
-    startIndex: Int,
+    albumId: Long,
     albumTitle: String,
     albumArtUri: Uri?,
+    startTrackId: Long,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    viewModel: PlayerViewModel = viewModel(
+        factory = PlayerViewModel.provideFactory(LocalContext.current, albumId, startTrackId),
+    ),
 ) {
     val context = LocalContext.current
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val player = remember {
         ExoPlayer.Builder(context).build()
     }
@@ -75,8 +82,9 @@ fun PlayerRoute(
         }
     }
 
-    LaunchedEffect(tracks, startIndex) {
-        val mediaItems = tracks.map { track ->
+    LaunchedEffect(uiState.tracks, uiState.startIndex) {
+        if (uiState.tracks.isEmpty()) return@LaunchedEffect
+        val mediaItems = uiState.tracks.map { track ->
             MediaItem.Builder()
                 .setUri(track.uri)
                 .setMediaId(track.id.toString())
@@ -90,8 +98,8 @@ fun PlayerRoute(
                 .build()
         }
         player.setMediaItems(mediaItems)
-        if (startIndex in mediaItems.indices) {
-            player.seekTo(startIndex, 0)
+        if (uiState.startIndex in mediaItems.indices) {
+            player.seekTo(uiState.startIndex, 0)
         }
         player.prepare()
         player.playWhenReady = true
@@ -99,7 +107,7 @@ fun PlayerRoute(
 
     PlayerScreen(
         player = player,
-        tracks = tracks,
+        uiState = uiState,
         albumTitle = albumTitle,
         albumArtUri = albumArtUri,
         onBack = onBack,
@@ -111,7 +119,7 @@ fun PlayerRoute(
 @Composable
 fun PlayerScreen(
     player: Player,
-    tracks: List<Track>,
+    uiState: PlayerUiState,
     albumTitle: String,
     albumArtUri: Uri?,
     onBack: () -> Unit,
@@ -144,12 +152,8 @@ fun PlayerScreen(
         }
     }
 
-    val currentTrack = tracks.getOrNull(currentIndex)
-    val progress = if (durationMs > 0) {
-        positionMs.toFloat() / durationMs.toFloat()
-    } else {
-        0f
-    }
+    val currentTrack = uiState.tracks.getOrNull(currentIndex)
+    val progress = if (durationMs > 0) positionMs.toFloat() / durationMs.toFloat() else 0f
 
     Scaffold(
         modifier = modifier,
@@ -167,6 +171,32 @@ fun PlayerScreen(
             )
         },
     ) { innerPadding ->
+        when {
+            uiState.isLoading -> {
+                Box(
+                    modifier = Modifier
+                        .padding(innerPadding)
+                        .fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator()
+                }
+                return@Scaffold
+            }
+
+            uiState.tracks.isEmpty() -> {
+                Box(
+                    modifier = Modifier
+                        .padding(innerPadding)
+                        .fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(text = uiState.errorMessage ?: stringResource(id = R.string.player_no_track))
+                }
+                return@Scaffold
+            }
+        }
+
         Column(
             modifier = Modifier
                 .padding(innerPadding)
