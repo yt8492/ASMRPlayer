@@ -1,12 +1,11 @@
 package com.yt8492.asmrplayer.data.repository
 
 import android.content.Context
-import android.content.ContentUris
-import android.net.Uri
 import android.provider.MediaStore
 import com.yt8492.asmrplayer.data.model.Album
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.core.net.toUri
 
 class AlbumRepositoryImpl(
     private val context: Context,
@@ -40,14 +39,7 @@ class AlbumRepositoryImpl(
                 val trackCount = cursor.getInt(trackCountColumn)
                 val albumArtUri = runCatching {
                     val albumArt = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.ALBUM_ART))
-                    if (albumArt != null) {
-                        Uri.parse(albumArt)
-                    } else {
-                        ContentUris.withAppendedId(
-                            Uri.parse("content://media/external/audio/albumart"),
-                            id,
-                        )
-                    }
+                    albumArt?.toUri()
                 }.getOrNull()
                 albums.add(
                     Album(
