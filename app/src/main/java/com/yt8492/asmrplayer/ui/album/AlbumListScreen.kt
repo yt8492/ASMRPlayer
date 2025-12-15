@@ -1,9 +1,12 @@
 package com.yt8492.asmrplayer.ui.album
 
 import android.Manifest
+import android.content.ContentUris
 import android.content.pm.PackageManager
 import android.os.Build
 import android.net.Uri
+import android.provider.MediaStore
+import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -226,6 +229,7 @@ private fun AlbumList(
                 modifier = Modifier.clickable { onAlbumClick(album) },
                 leadingContent = {
                     AlbumArt(
+                        albumId = album.id,
                         albumArtUri = album.albumArtUri,
                         contentDescription = album.title,
                     )
@@ -258,21 +262,41 @@ private fun AlbumList(
 
 @Composable
 private fun AlbumArt(
+    albumId: Long,
     albumArtUri: Uri?,
     contentDescription: String?,
     modifier: Modifier = Modifier,
 ) {
-    AsyncImage(
-        model = albumArtUri,
-        contentDescription = contentDescription,
-        modifier = modifier
-            .size(56.dp)
-            .clip(MaterialTheme.shapes.medium),
-        contentScale = ContentScale.Crop,
-        placeholder = rememberVectorPainter(Icons.Filled.Album),
-        error = rememberVectorPainter(Icons.Filled.Album),
-        fallback = rememberVectorPainter(Icons.Filled.Album),
-    )
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val context = LocalContext.current
+        val uri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, albumId)
+        val bitmap = runCatching {
+            context.contentResolver.loadThumbnail(uri, Size(240, 240), null)
+        }.getOrNull()
+        AsyncImage(
+            model = bitmap,
+            contentDescription = contentDescription,
+            modifier = modifier
+                .size(56.dp)
+                .clip(MaterialTheme.shapes.medium),
+            contentScale = ContentScale.Crop,
+            placeholder = rememberVectorPainter(Icons.Filled.Album),
+            error = rememberVectorPainter(Icons.Filled.Album),
+            fallback = rememberVectorPainter(Icons.Filled.Album),
+        )
+    } else {
+        AsyncImage(
+            model = albumArtUri,
+            contentDescription = contentDescription,
+            modifier = modifier
+                .size(56.dp)
+                .clip(MaterialTheme.shapes.medium),
+            contentScale = ContentScale.Crop,
+            placeholder = rememberVectorPainter(Icons.Filled.Album),
+            error = rememberVectorPainter(Icons.Filled.Album),
+            fallback = rememberVectorPainter(Icons.Filled.Album),
+        )
+    }
 }
 
 @Preview(showBackground = true)

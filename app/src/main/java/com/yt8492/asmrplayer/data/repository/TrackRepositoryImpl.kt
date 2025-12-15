@@ -1,5 +1,6 @@
 package com.yt8492.asmrplayer.data.repository
 
+import android.content.ContentUris
 import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
@@ -18,7 +19,10 @@ class TrackRepositoryImpl(
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.TRACK,
         )
-        val selection = "${MediaStore.Audio.Media.ALBUM_ID}=? AND ${MediaStore.Audio.Media.IS_MUSIC}!=0"
+        val selection = """
+            ${MediaStore.Audio.Media.ALBUM_ID}=? AND
+            ${MediaStore.Audio.Media.IS_MUSIC}!=0
+        """
         val selectionArgs = arrayOf(albumId.toString())
         val sortOrder = "${MediaStore.Audio.Media.TRACK} ASC"
         val contentResolver = context.contentResolver
@@ -41,9 +45,9 @@ class TrackRepositoryImpl(
                 val artist = cursor.getString(artistColumn).orEmpty()
                 val durationMs = cursor.getLong(durationColumn)
                 val trackNumber = cursor.getInt(trackNumberColumn)
-                val contentUri = Uri.withAppendedPath(
+                val contentUri = ContentUris.withAppendedId(
                     MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                    id.toString(),
+                    id,
                 )
                 tracks.add(
                     Track(

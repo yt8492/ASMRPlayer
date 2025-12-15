@@ -47,8 +47,6 @@ fun AppNavHost(
             val albumArtUri = albumArt.takeIf { it.isNotEmpty() }?.let { Uri.parse(it) }
             TrackListRoute(
                 albumId = albumId,
-                albumTitle = albumTitle,
-                albumArtUri = albumArtUri,
                 onBack = { navController.popBackStack() },
                 onTrackClick = { tracks, index ->
                     val trackId = tracks.getOrNull(index)?.id ?: return@TrackListRoute

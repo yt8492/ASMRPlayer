@@ -1,9 +1,12 @@
 package com.yt8492.asmrplayer.ui.track
 
 import android.Manifest
+import android.content.ContentUris
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.provider.MediaStore
+import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +20,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Album
@@ -55,15 +59,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yt8492.asmrplayer.R
 import com.yt8492.asmrplayer.data.model.Track
 import coil.compose.AsyncImage
+import com.yt8492.asmrplayer.data.model.Album
 import java.util.concurrent.TimeUnit
 
 @Composable
 fun TrackListRoute(
     albumId: Long,
-    albumTitle: String,
     onBack: () -> Unit,
     onTrackClick: (tracks: List<Track>, index: Int) -> Unit,
-    albumArtUri: Uri?,
     modifier: Modifier = Modifier,
     viewModel: TrackListViewModel = viewModel(
         factory = TrackListViewModel.provideFactory(LocalContext.current, albumId),
@@ -100,12 +103,10 @@ fun TrackListRoute(
 
     TrackListScreen(
         uiState = uiState,
-        albumTitle = albumTitle,
         hasPermission = hasPermission,
         onRequestPermission = { permissionLauncher.launch(permission) },
         onRetry = viewModel::loadTracks,
         onBack = onBack,
-        albumArtUri = albumArtUri,
         onTrackClick = { index -> onTrackClick(uiState.tracks, index) },
         modifier = modifier,
     )
@@ -115,12 +116,10 @@ fun TrackListRoute(
 @Composable
 fun TrackListScreen(
     uiState: TrackListUiState,
-    albumTitle: String,
     hasPermission: Boolean,
     onRequestPermission: () -> Unit,
     onRetry: () -> Unit,
     onBack: () -> Unit,
-    albumArtUri: Uri?,
     onTrackClick: (index: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -136,7 +135,7 @@ fun TrackListScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text(text = albumTitle) },
+                title = { Text(text = uiState.album?.title ?: "") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -172,9 +171,9 @@ fun TrackListScreen(
                     modifier = Modifier.align(Alignment.Center),
                 )
 
-                else -> TrackList(
+                uiState.album != null -> TrackList(
                     tracks = uiState.tracks,
-                    albumArtUri = albumArtUri,
+                    album = uiState.album,
                     onTrackClick = onTrackClick,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -234,7 +233,7 @@ private fun EmptyTrackList(
 @Composable
 private fun TrackList(
     tracks: List<Track>,
-    albumArtUri: Uri?,
+    album: Album,
     onTrackClick: (index: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -243,7 +242,9 @@ private fun TrackList(
     ) {
         item {
             AlbumArt(
-                albumArtUri = albumArtUri,
+                albumId = album.id,
+                albumArtUri = album.albumArtUri,
+                contentDescription = album.title,
                 modifier = Modifier
                     .padding(horizontal = 24.dp, vertical = 16.dp)
                     .fillMaxWidth(),
@@ -299,20 +300,41 @@ private fun TrackList(
 
 @Composable
 private fun AlbumArt(
+    albumId: Long,
     albumArtUri: Uri?,
+    contentDescription: String?,
     modifier: Modifier = Modifier,
 ) {
-    AsyncImage(
-        model = albumArtUri,
-        contentDescription = null,
-        modifier = modifier
-            .aspectRatio(1f)
-            .clip(MaterialTheme.shapes.medium),
-        contentScale = ContentScale.Crop,
-        placeholder = rememberVectorPainter(Icons.Filled.Album),
-        error = rememberVectorPainter(Icons.Filled.Album),
-        fallback = rememberVectorPainter(Icons.Filled.Album),
-    )
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val context = LocalContext.current
+        val uri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, albumId)
+        val bitmap = runCatching {
+            context.contentResolver.loadThumbnail(uri, Size(1024, 1024), null)
+        }.getOrNull()
+        AsyncImage(
+            model = bitmap,
+            contentDescription = contentDescription,
+            modifier = modifier
+                .aspectRatio(1f)
+                .clip(MaterialTheme.shapes.medium),
+            contentScale = ContentScale.Crop,
+            placeholder = rememberVectorPainter(Icons.Filled.Album),
+            error = rememberVectorPainter(Icons.Filled.Album),
+            fallback = rememberVectorPainter(Icons.Filled.Album),
+        )
+    } else {
+        AsyncImage(
+            model = albumArtUri,
+            contentDescription = contentDescription,
+            modifier = modifier
+                .aspectRatio(1f)
+                .clip(MaterialTheme.shapes.medium),
+            contentScale = ContentScale.Crop,
+            placeholder = rememberVectorPainter(Icons.Filled.Album),
+            error = rememberVectorPainter(Icons.Filled.Album),
+            fallback = rememberVectorPainter(Icons.Filled.Album),
+        )
+    }
 }
 
 private fun formatDuration(durationMs: Long): String {
@@ -338,12 +360,10 @@ private fun TrackListScreenPreview() {
                 ),
             ),
         ),
-        albumTitle = "サンプルアルバム",
         hasPermission = true,
         onRequestPermission = {},
         onRetry = {},
         onBack = {},
-        albumArtUri = Uri.EMPTY,
         onTrackClick = {},
     )
 }
