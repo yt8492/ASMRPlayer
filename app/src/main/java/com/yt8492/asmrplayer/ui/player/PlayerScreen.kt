@@ -35,6 +35,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,12 +53,16 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaController
+import androidx.media3.session.MediaSession
 import com.yt8492.asmrplayer.R
 import kotlinx.coroutines.delay
 import java.util.concurrent.TimeUnit
 import coil.compose.AsyncImage
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.core.content.ContextCompat
+import com.google.common.util.concurrent.ListenableFuture
 
 @Composable
 fun PlayerRoute(
@@ -126,9 +132,9 @@ fun PlayerScreen(
     modifier: Modifier = Modifier,
 ) {
     var isPlaying by remember { mutableStateOf(player.isPlaying) }
-    var currentIndex by remember { mutableStateOf(player.currentMediaItemIndex) }
-    var positionMs by remember { mutableStateOf(0L) }
-    var durationMs by remember { mutableStateOf(0L) }
+    var currentIndex by remember { mutableIntStateOf(player.currentMediaItemIndex) }
+    var positionMs by remember { mutableLongStateOf(0L) }
+    var durationMs by remember { mutableLongStateOf(0L) }
 
     DisposableEffect(player) {
         val listener = object : Player.Listener {
