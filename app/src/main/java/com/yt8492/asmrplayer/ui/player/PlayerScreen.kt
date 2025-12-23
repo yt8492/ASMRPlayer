@@ -1,6 +1,10 @@
 package com.yt8492.asmrplayer.ui.player
 
+import android.content.ContentUris
 import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
+import android.util.Size
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -114,6 +118,7 @@ fun PlayerRoute(
     PlayerScreen(
         player = player,
         uiState = uiState,
+        albumId = albumId,
         albumTitle = albumTitle,
         albumArtUri = albumArtUri,
         onBack = onBack,
@@ -126,6 +131,7 @@ fun PlayerRoute(
 fun PlayerScreen(
     player: Player,
     uiState: PlayerUiState,
+    albumId: Long,
     albumTitle: String,
     albumArtUri: Uri?,
     onBack: () -> Unit,
@@ -229,18 +235,10 @@ fun PlayerScreen(
                 )
             }
 
-            AsyncImage(
-                model = albumArtUri,
+            AlbumArt(
+                albumId = albumId,
+                albumArtUri = albumArtUri,
                 contentDescription = albumTitle,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f)
-                    .padding(horizontal = 12.dp)
-                    .clip(RoundedCornerShape(16.dp)),
-                contentScale = ContentScale.Crop,
-                placeholder = rememberVectorPainter(Icons.Filled.Album),
-                error = rememberVectorPainter(Icons.Filled.Album),
-                fallback = rememberVectorPainter(Icons.Filled.Album),
             )
 
             Column(
@@ -270,10 +268,6 @@ fun PlayerScreen(
                         style = MaterialTheme.typography.labelMedium,
                     )
                 }
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier.fillMaxWidth(),
-                )
             }
 
             Row(
@@ -329,6 +323,45 @@ fun PlayerScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AlbumArt(
+    albumId: Long,
+    albumArtUri: Uri?,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val context = LocalContext.current
+        val uri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, albumId)
+        val bitmap = runCatching {
+            context.contentResolver.loadThumbnail(uri, Size(1024, 1024), null)
+        }.getOrNull()
+        AsyncImage(
+            model = bitmap,
+            contentDescription = contentDescription,
+            modifier = modifier
+                .aspectRatio(1f)
+                .clip(MaterialTheme.shapes.medium),
+            contentScale = ContentScale.Crop,
+            placeholder = rememberVectorPainter(Icons.Filled.Album),
+            error = rememberVectorPainter(Icons.Filled.Album),
+            fallback = rememberVectorPainter(Icons.Filled.Album),
+        )
+    } else {
+        AsyncImage(
+            model = albumArtUri,
+            contentDescription = contentDescription,
+            modifier = modifier
+                .aspectRatio(1f)
+                .clip(MaterialTheme.shapes.medium),
+            contentScale = ContentScale.Crop,
+            placeholder = rememberVectorPainter(Icons.Filled.Album),
+            error = rememberVectorPainter(Icons.Filled.Album),
+            fallback = rememberVectorPainter(Icons.Filled.Album),
+        )
     }
 }
 
