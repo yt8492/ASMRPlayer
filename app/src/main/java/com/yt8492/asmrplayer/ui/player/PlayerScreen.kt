@@ -1,8 +1,10 @@
 package com.yt8492.asmrplayer.ui.player
 
+import android.content.ComponentName
 import android.content.ContentUris
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Size
 import androidx.compose.foundation.layout.Arrangement
@@ -15,9 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Album
@@ -29,7 +29,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
@@ -47,26 +46,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaController
-import androidx.media3.session.MediaSession
-import com.yt8492.asmrplayer.R
-import kotlinx.coroutines.delay
-import java.util.concurrent.TimeUnit
+import androidx.media3.session.SessionToken
 import coil.compose.AsyncImage
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.core.content.ContextCompat
-import com.google.common.util.concurrent.ListenableFuture
+import com.yt8492.asmrplayer.R
+import com.yt8492.asmrplayer.service.PlaybackService
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.delay
 
 @Composable
 fun PlayerRoute(
@@ -82,18 +80,51 @@ fun PlayerRoute(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val player = remember {
-        ExoPlayer.Builder(context).build()
+    val sessionToken = remember {
+        SessionToken(context, ComponentName(context, PlaybackService::class.java))
     }
+    val controllerFuture = remember {
+        MediaController.Builder(context, sessionToken).buildAsync()
+    }
+    val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
+    var controller by remember { mutableStateOf<MediaController?>(null) }
+    var controllerError by remember { mutableStateOf(false) }
 
-    DisposableEffect(Unit) {
+    DisposableEffect(controllerFuture) {
+        controllerFuture.addListener(
+            {
+                runCatching {
+                    controllerFuture.get()
+                }.onSuccess {
+                    controller = it
+                }.onFailure {
+                    controllerError = true
+                }
+            },
+            mainExecutor,
+        )
         onDispose {
-            player.release()
+            controllerFuture.cancel(true)
+            controller?.release()
         }
     }
 
-    LaunchedEffect(uiState.tracks, uiState.startIndex) {
+    LaunchedEffect(controller, uiState.tracks, uiState.startIndex) {
+        val ctl = controller ?: return@LaunchedEffect
         if (uiState.tracks.isEmpty()) return@LaunchedEffect
+        val mediaIds = uiState.tracks.map { it.id.toString() }
+        val currentMediaIds = List(ctl.mediaItemCount) { index ->
+            ctl.getMediaItemAt(index).mediaId
+        }
+        val startIndex = uiState.startIndex.takeIf { it in uiState.tracks.indices } ?: 0
+        if (currentMediaIds == mediaIds) {
+            if (ctl.currentMediaItem?.mediaId != startTrackId.toString()) {
+                ctl.seekTo(startIndex, 0)
+                ctl.play()
+            }
+            return@LaunchedEffect
+        }
+
         val mediaItems = uiState.tracks.map { track ->
             MediaItem.Builder()
                 .setUri(track.uri)
@@ -103,27 +134,49 @@ fun PlayerRoute(
                         .setTitle(track.title)
                         .setArtist(track.artist)
                         .setAlbumTitle(albumTitle)
+                        .setExtras(
+                            Bundle().apply {
+                                putLong(PlaybackService.EXTRA_ALBUM_ID, albumId)
+                                putLong(PlaybackService.EXTRA_TRACK_ID, track.id)
+                                putString(PlaybackService.EXTRA_ALBUM_TITLE, albumTitle)
+                                putString(PlaybackService.EXTRA_ALBUM_ART_URI, albumArtUri?.toString().orEmpty())
+                            },
+                        )
                         .build(),
                 )
                 .build()
         }
-        player.setMediaItems(mediaItems)
-        if (uiState.startIndex in mediaItems.indices) {
-            player.seekTo(uiState.startIndex, 0)
-        }
-        player.prepare()
-        player.playWhenReady = true
+        ctl.setMediaItems(mediaItems)
+        ctl.seekTo(startIndex, 0)
+        ctl.prepare()
+        ctl.playWhenReady = true
     }
 
-    PlayerScreen(
-        player = player,
-        uiState = uiState,
-        albumId = albumId,
-        albumTitle = albumTitle,
-        albumArtUri = albumArtUri,
-        onBack = onBack,
-        modifier = modifier,
-    )
+    if (controllerError) {
+        Box(
+            modifier = modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(text = stringResource(id = R.string.player_connection_error))
+        }
+    } else if (controller == null) {
+        Box(
+            modifier = modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            CircularProgressIndicator()
+        }
+    } else {
+        PlayerScreen(
+            player = controller!!,
+            uiState = uiState,
+            albumId = albumId,
+            albumTitle = albumTitle,
+            albumArtUri = albumArtUri,
+            onBack = onBack,
+            modifier = modifier,
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -131,7 +184,7 @@ fun PlayerRoute(
 fun PlayerScreen(
     player: Player,
     uiState: PlayerUiState,
-    albumId: Long,
+    albumId: Long?,
     albumTitle: String,
     albumArtUri: Uri?,
     onBack: () -> Unit,
@@ -328,12 +381,12 @@ fun PlayerScreen(
 
 @Composable
 private fun AlbumArt(
-    albumId: Long,
+    albumId: Long?,
     albumArtUri: Uri?,
     contentDescription: String?,
     modifier: Modifier = Modifier,
 ) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && albumId != null) {
         val context = LocalContext.current
         val uri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, albumId)
         val bitmap = runCatching {

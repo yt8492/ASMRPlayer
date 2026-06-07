@@ -3,6 +3,7 @@ package com.yt8492.asmrplayer.navigation
 import android.net.Uri
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -17,7 +18,17 @@ import com.yt8492.asmrplayer.ui.track.TrackListRoute
 fun AppNavHost(
     modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier,
     navController: NavHostController = rememberNavController(),
+    playbackDestination: PlaybackDestination? = null,
 ) {
+    LaunchedEffect(playbackDestination?.requestId) {
+        val destination = playbackDestination ?: return@LaunchedEffect
+        val title = Uri.encode(destination.albumTitle)
+        val art = Uri.encode(destination.albumArtUri?.toString() ?: "")
+        navController.navigate("player/${destination.albumId}/${destination.trackId}?title=$title&art=$art") {
+            launchSingleTop = true
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = "album_list",

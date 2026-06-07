@@ -15,4 +15,6 @@
     <string name="player_pause">一時停止</string>
     <string name="player_prev">前の曲</string>
     <string name="player_next">次の曲</string>
+    <string name="player_connection_error">再生サービスに接続できませんでした</string>
+    <string name="notification_channel_name">音楽の再生</string>
 </resources>
