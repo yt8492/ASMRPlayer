@@ -53,10 +53,13 @@ class PlaybackService : MediaSessionService() {
                     val intent = Intent(this@PlaybackService, MainActivity::class.java).apply {
                         action = ACTION_OPEN_PLAYER
                         flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        putExtra(EXTRA_QUEUE_TYPE, extras?.getString(EXTRA_QUEUE_TYPE).orEmpty())
                         putExtra(EXTRA_ALBUM_ID, extras?.getLong(EXTRA_ALBUM_ID, -1L) ?: -1L)
+                        putExtra(EXTRA_PLAYLIST_ID, extras?.getLong(EXTRA_PLAYLIST_ID, -1L) ?: -1L)
                         putExtra(EXTRA_TRACK_ID, player.currentMediaItem?.mediaId?.toLongOrNull() ?: -1L)
                         putExtra(EXTRA_ALBUM_TITLE, metadata?.albumTitle?.toString().orEmpty())
                         putExtra(EXTRA_ALBUM_ART_URI, extras?.getString(EXTRA_ALBUM_ART_URI).orEmpty())
+                        putExtra(EXTRA_PLAYLIST_NAME, extras?.getString(EXTRA_PLAYLIST_NAME).orEmpty())
                     }
                     return PendingIntent.getActivity(
                         this@PlaybackService,
@@ -129,10 +132,15 @@ class PlaybackService : MediaSessionService() {
 
     companion object {
         const val ACTION_OPEN_PLAYER = "com.yt8492.asmrplayer.action.OPEN_PLAYER"
+        const val EXTRA_QUEUE_TYPE = "com.yt8492.asmrplayer.extra.QUEUE_TYPE"
         const val EXTRA_ALBUM_ID = "com.yt8492.asmrplayer.extra.ALBUM_ID"
+        const val EXTRA_PLAYLIST_ID = "com.yt8492.asmrplayer.extra.PLAYLIST_ID"
         const val EXTRA_TRACK_ID = "com.yt8492.asmrplayer.extra.TRACK_ID"
         const val EXTRA_ALBUM_TITLE = "com.yt8492.asmrplayer.extra.ALBUM_TITLE"
         const val EXTRA_ALBUM_ART_URI = "com.yt8492.asmrplayer.extra.ALBUM_ART_URI"
+        const val EXTRA_PLAYLIST_NAME = "com.yt8492.asmrplayer.extra.PLAYLIST_NAME"
+        const val QUEUE_TYPE_ALBUM = "album"
+        const val QUEUE_TYPE_PLAYLIST = "playlist"
 
         private const val NOTIFICATION_ID = 1
         private const val NOTIFICATION_CHANNEL_ID = "asmrplayer_playback"

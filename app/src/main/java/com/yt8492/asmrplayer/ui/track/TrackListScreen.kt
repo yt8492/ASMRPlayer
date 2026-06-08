@@ -23,19 +23,26 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -57,6 +64,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yt8492.asmrplayer.R
+import com.yt8492.asmrplayer.data.model.Playlist
 import com.yt8492.asmrplayer.data.model.Track
 import coil.compose.AsyncImage
 import com.yt8492.asmrplayer.data.model.Album
@@ -108,6 +116,9 @@ fun TrackListRoute(
         onRetry = viewModel::loadTracks,
         onBack = onBack,
         onTrackClick = { index -> onTrackClick(uiState.tracks, index) },
+        onAddTrackToPlaylist = viewModel::addTrackToPlaylist,
+        onCreatePlaylistAndAddTrack = viewModel::createPlaylistAndAddTrack,
+        onPlaylistMessageShown = viewModel::consumePlaylistMessage,
         modifier = modifier,
     )
 }
@@ -121,13 +132,24 @@ fun TrackListScreen(
     onRetry: () -> Unit,
     onBack: () -> Unit,
     onTrackClick: (index: Int) -> Unit,
+    onAddTrackToPlaylist: (playlistId: Long, trackId: Long) -> Unit,
+    onCreatePlaylistAndAddTrack: (name: String, trackId: Long) -> Unit,
+    onPlaylistMessageShown: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    var selectedTrack by remember { mutableStateOf<Track?>(null) }
+    var trackForNewPlaylist by remember { mutableStateOf<Track?>(null) }
 
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
+        }
+    }
+    LaunchedEffect(uiState.playlistMessage) {
+        uiState.playlistMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            onPlaylistMessageShown()
         }
     }
 
@@ -175,10 +197,36 @@ fun TrackListScreen(
                     tracks = uiState.tracks,
                     album = uiState.album,
                     onTrackClick = onTrackClick,
+                    onAddToPlaylistClick = { track -> selectedTrack = track },
                     modifier = Modifier.fillMaxSize(),
                 )
             }
         }
+    }
+
+    selectedTrack?.let { track ->
+        PlaylistPickerSheet(
+            playlists = uiState.playlists,
+            onDismiss = { selectedTrack = null },
+            onCreatePlaylist = {
+                trackForNewPlaylist = track
+                selectedTrack = null
+            },
+            onPlaylistClick = { playlist ->
+                onAddTrackToPlaylist(playlist.id, track.id)
+                selectedTrack = null
+            },
+        )
+    }
+
+    trackForNewPlaylist?.let { track ->
+        CreatePlaylistDialog(
+            onDismiss = { trackForNewPlaylist = null },
+            onConfirm = { name ->
+                onCreatePlaylistAndAddTrack(name, track.id)
+                trackForNewPlaylist = null
+            },
+        )
     }
 }
 
@@ -235,6 +283,7 @@ private fun TrackList(
     tracks: List<Track>,
     album: Album,
     onTrackClick: (index: Int) -> Unit,
+    onAddToPlaylistClick: (Track) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -290,12 +339,109 @@ private fun TrackList(
                             text = formatDuration(track.durationMs),
                             style = MaterialTheme.typography.labelMedium,
                         )
+                        IconButton(onClick = { onAddToPlaylistClick(track) }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.PlaylistAdd,
+                                contentDescription = stringResource(id = R.string.playlist_add_track),
+                            )
+                        }
                     }
                 },
             )
             HorizontalDivider()
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PlaylistPickerSheet(
+    playlists: List<Playlist>,
+    onDismiss: () -> Unit,
+    onCreatePlaylist: () -> Unit,
+    onPlaylistClick: (Playlist) -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(id = R.string.playlist_select_title),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            FilledTonalButton(
+                onClick = onCreatePlaylist,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = null,
+                )
+                Text(text = stringResource(id = R.string.playlist_create))
+            }
+            if (playlists.isEmpty()) {
+                Text(
+                    text = stringResource(id = R.string.playlist_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(vertical = 16.dp),
+                )
+            } else {
+                playlists.forEach { playlist ->
+                    ListItem(
+                        modifier = Modifier.clickable { onPlaylistClick(playlist) },
+                        headlineContent = {
+                            Text(
+                                text = playlist.name,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                        supportingContent = {
+                            Text(text = stringResource(id = R.string.playlist_track_count, playlist.trackCount))
+                        },
+                    )
+                    HorizontalDivider()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CreatePlaylistDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var name by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(id = R.string.playlist_create)) },
+        text = {
+            TextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text(text = stringResource(id = R.string.playlist_name)) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(name) },
+                enabled = name.isNotBlank(),
+            ) {
+                Text(text = stringResource(id = R.string.common_create))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(id = R.string.common_cancel))
+            }
+        },
+    )
 }
 
 @Composable
@@ -365,5 +511,8 @@ private fun TrackListScreenPreview() {
         onRetry = {},
         onBack = {},
         onTrackClick = {},
+        onAddTrackToPlaylist = { _, _ -> },
+        onCreatePlaylistAndAddTrack = { _, _ -> },
+        onPlaylistMessageShown = {},
     )
 }

@@ -4,6 +4,9 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.yt8492.asmrplayer.data.local.AppDatabase
+import com.yt8492.asmrplayer.data.repository.PlaylistRepository
+import com.yt8492.asmrplayer.data.repository.PlaylistRepositoryImpl
 import com.yt8492.asmrplayer.data.repository.TrackRepository
 import com.yt8492.asmrplayer.data.repository.TrackRepositoryImpl
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,9 +16,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class PlayerViewModel(
-    private val albumId: Long,
+    private val queue: PlaybackQueue,
     private val startTrackId: Long,
     private val trackRepository: TrackRepository,
+    private val playlistRepository: PlaylistRepository,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
@@ -28,7 +32,13 @@ class PlayerViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             runCatching {
-                trackRepository.getTracks(albumId)
+                when (val currentQueue = queue) {
+                    is PlaybackQueue.Album -> trackRepository.getTracks(currentQueue.albumId)
+                    is PlaybackQueue.Playlist -> {
+                        val trackIds = playlistRepository.getTrackIds(currentQueue.playlistId)
+                        trackRepository.getTracks(trackIds)
+                    }
+                }
             }.onSuccess { tracks ->
                 val startIndex = tracks.indexOfFirst { it.id == startTrackId }.takeIf { it >= 0 } ?: 0
                 _uiState.update {
@@ -50,13 +60,16 @@ class PlayerViewModel(
     }
 
     companion object {
-        fun provideFactory(context: Context, albumId: Long, startTrackId: Long): ViewModelProvider.Factory {
+        fun provideFactory(context: Context, queue: PlaybackQueue, startTrackId: Long): ViewModelProvider.Factory {
             val applicationContext = context.applicationContext
             return object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    val repository: TrackRepository = TrackRepositoryImpl(applicationContext)
+                    val trackRepository: TrackRepository = TrackRepositoryImpl(applicationContext)
+                    val playlistRepository: PlaylistRepository = PlaylistRepositoryImpl(
+                        AppDatabase.getInstance(applicationContext).playlistDao(),
+                    )
                     @Suppress("UNCHECKED_CAST")
-                    return PlayerViewModel(albumId, startTrackId, repository) as T
+                    return PlayerViewModel(queue, startTrackId, trackRepository, playlistRepository) as T
                 }
             }
         }

@@ -37,17 +37,27 @@ class MainActivity : ComponentActivity() {
 
     private fun Intent.toPlaybackDestination(): PlaybackDestination? {
         if (action != PlaybackService.ACTION_OPEN_PLAYER) return null
-        val albumId = getLongExtra(PlaybackService.EXTRA_ALBUM_ID, -1L).takeIf { it >= 0 } ?: return null
+        val queueType = getStringExtra(PlaybackService.EXTRA_QUEUE_TYPE)
+            ?.takeIf { it.isNotEmpty() }
+            ?: PlaybackService.QUEUE_TYPE_ALBUM
+        val albumId = getLongExtra(PlaybackService.EXTRA_ALBUM_ID, -1L)
+        val playlistId = getLongExtra(PlaybackService.EXTRA_PLAYLIST_ID, -1L)
         val trackId = getLongExtra(PlaybackService.EXTRA_TRACK_ID, -1L).takeIf { it >= 0 } ?: return null
         val albumTitle = getStringExtra(PlaybackService.EXTRA_ALBUM_TITLE).orEmpty()
         val albumArtUri = getStringExtra(PlaybackService.EXTRA_ALBUM_ART_URI)
             ?.takeIf { it.isNotEmpty() }
             ?.let { Uri.parse(it) }
+        val playlistName = getStringExtra(PlaybackService.EXTRA_PLAYLIST_NAME).orEmpty()
+        if (queueType == PlaybackService.QUEUE_TYPE_ALBUM && albumId < 0) return null
+        if (queueType == PlaybackService.QUEUE_TYPE_PLAYLIST && playlistId < 0) return null
         return PlaybackDestination(
+            queueType = queueType,
             albumId = albumId,
+            playlistId = playlistId,
             trackId = trackId,
             albumTitle = albumTitle,
             albumArtUri = albumArtUri,
+            playlistName = playlistName,
             requestId = SystemClock.elapsedRealtime(),
         )
     }

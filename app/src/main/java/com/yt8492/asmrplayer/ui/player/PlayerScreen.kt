@@ -68,14 +68,12 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun PlayerRoute(
-    albumId: Long,
-    albumTitle: String,
-    albumArtUri: Uri?,
+    queue: PlaybackQueue,
     startTrackId: Long,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PlayerViewModel = viewModel(
-        factory = PlayerViewModel.provideFactory(LocalContext.current, albumId, startTrackId),
+        factory = PlayerViewModel.provideFactory(LocalContext.current, queue, startTrackId),
     ),
 ) {
     val context = LocalContext.current
@@ -112,6 +110,7 @@ fun PlayerRoute(
     LaunchedEffect(controller, uiState.tracks, uiState.startIndex) {
         val ctl = controller ?: return@LaunchedEffect
         if (uiState.tracks.isEmpty()) return@LaunchedEffect
+        val queueTitle = queue.title
         val mediaIds = uiState.tracks.map { it.id.toString() }
         val currentMediaIds = List(ctl.mediaItemCount) { index ->
             ctl.getMediaItemAt(index).mediaId
@@ -126,6 +125,7 @@ fun PlayerRoute(
         }
 
         val mediaItems = uiState.tracks.map { track ->
+            val trackAlbumTitle = track.albumTitle.ifEmpty { queueTitle }
             MediaItem.Builder()
                 .setUri(track.uri)
                 .setMediaId(track.id.toString())
@@ -133,13 +133,24 @@ fun PlayerRoute(
                     MediaMetadata.Builder()
                         .setTitle(track.title)
                         .setArtist(track.artist)
-                        .setAlbumTitle(albumTitle)
+                        .setAlbumTitle(trackAlbumTitle)
                         .setExtras(
                             Bundle().apply {
-                                putLong(PlaybackService.EXTRA_ALBUM_ID, albumId)
+                                when (queue) {
+                                    is PlaybackQueue.Album -> {
+                                        putString(PlaybackService.EXTRA_QUEUE_TYPE, PlaybackService.QUEUE_TYPE_ALBUM)
+                                        putLong(PlaybackService.EXTRA_ALBUM_ID, queue.albumId)
+                                        putString(PlaybackService.EXTRA_ALBUM_TITLE, queue.albumTitle)
+                                        putString(PlaybackService.EXTRA_ALBUM_ART_URI, queue.albumArtUri?.toString().orEmpty())
+                                    }
+
+                                    is PlaybackQueue.Playlist -> {
+                                        putString(PlaybackService.EXTRA_QUEUE_TYPE, PlaybackService.QUEUE_TYPE_PLAYLIST)
+                                        putLong(PlaybackService.EXTRA_PLAYLIST_ID, queue.playlistId)
+                                        putString(PlaybackService.EXTRA_PLAYLIST_NAME, queue.playlistName)
+                                    }
+                                }
                                 putLong(PlaybackService.EXTRA_TRACK_ID, track.id)
-                                putString(PlaybackService.EXTRA_ALBUM_TITLE, albumTitle)
-                                putString(PlaybackService.EXTRA_ALBUM_ART_URI, albumArtUri?.toString().orEmpty())
                             },
                         )
                         .build(),
@@ -170,9 +181,8 @@ fun PlayerRoute(
         PlayerScreen(
             player = controller!!,
             uiState = uiState,
-            albumId = albumId,
-            albumTitle = albumTitle,
-            albumArtUri = albumArtUri,
+            queueTitle = queue.title,
+            fallbackAlbumArtUri = queue.albumArtUri,
             onBack = onBack,
             modifier = modifier,
         )
@@ -184,9 +194,8 @@ fun PlayerRoute(
 fun PlayerScreen(
     player: Player,
     uiState: PlayerUiState,
-    albumId: Long?,
-    albumTitle: String,
-    albumArtUri: Uri?,
+    queueTitle: String,
+    fallbackAlbumArtUri: Uri?,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -224,7 +233,7 @@ fun PlayerScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text(text = albumTitle) },
+                title = { Text(text = queueTitle) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -289,9 +298,9 @@ fun PlayerScreen(
             }
 
             AlbumArt(
-                albumId = albumId,
-                albumArtUri = albumArtUri,
-                contentDescription = albumTitle,
+                albumId = currentTrack?.albumId,
+                albumArtUri = currentTrack?.albumArtUri ?: fallbackAlbumArtUri,
+                contentDescription = currentTrack?.albumTitle ?: queueTitle,
             )
 
             Column(
@@ -424,3 +433,15 @@ private fun formatDuration(durationMs: Long): String {
     val seconds = totalSeconds % 60
     return "%d:%02d".format(minutes, seconds)
 }
+
+private val PlaybackQueue.title: String
+    get() = when (this) {
+        is PlaybackQueue.Album -> albumTitle
+        is PlaybackQueue.Playlist -> playlistName
+    }
+
+private val PlaybackQueue.albumArtUri: Uri?
+    get() = when (this) {
+        is PlaybackQueue.Album -> albumArtUri
+        is PlaybackQueue.Playlist -> null
+    }

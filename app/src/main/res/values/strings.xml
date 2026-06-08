@@ -17,4 +17,18 @@
     <string name="player_next">次の曲</string>
     <string name="player_connection_error">再生サービスに接続できませんでした</string>
     <string name="notification_channel_name">音楽の再生</string>
+    <string name="playlist_list_title">プレイリスト</string>
+    <string name="playlist_detail_title">プレイリスト</string>
+    <string name="playlist_empty">プレイリストがありません</string>
+    <string name="playlist_detail_empty">このプレイリストにトラックがありません</string>
+    <string name="playlist_create">プレイリストを作成</string>
+    <string name="playlist_delete">プレイリストを削除</string>
+    <string name="playlist_name">プレイリスト名</string>
+    <string name="playlist_track_count">%1$d曲</string>
+    <string name="playlist_add_track">プレイリストに追加</string>
+    <string name="playlist_select_title">追加先のプレイリスト</string>
+    <string name="playlist_track_remove">プレイリストから削除</string>
+    <string name="playlist_reorder">並べ替え</string>
+    <string name="common_create">作成</string>
+    <string name="common_cancel">キャンセル</string>
 </resources>
