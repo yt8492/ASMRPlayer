@@ -34,6 +34,7 @@ class PlayerViewModel(
             runCatching {
                 when (val currentQueue = queue) {
                     is PlaybackQueue.Album -> trackRepository.getTracks(currentQueue.albumId)
+                    is PlaybackQueue.Folder -> trackRepository.getTracksInDirectory(currentQueue.directoryPath)
                     is PlaybackQueue.Playlist -> {
                         val trackIds = playlistRepository.getTrackIds(currentQueue.playlistId)
                         trackRepository.getTracks(trackIds)

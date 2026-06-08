@@ -48,6 +48,8 @@ class MainActivity : ComponentActivity() {
             ?.takeIf { it.isNotEmpty() }
             ?.let { Uri.parse(it) }
         val playlistName = getStringExtra(PlaybackService.EXTRA_PLAYLIST_NAME).orEmpty()
+        val folderPath = getStringExtra(PlaybackService.EXTRA_FOLDER_PATH).orEmpty()
+        val folderTitle = getStringExtra(PlaybackService.EXTRA_FOLDER_TITLE).orEmpty()
         if (queueType == PlaybackService.QUEUE_TYPE_ALBUM && albumId < 0) return null
         if (queueType == PlaybackService.QUEUE_TYPE_PLAYLIST && playlistId < 0) return null
         return PlaybackDestination(
@@ -58,6 +60,8 @@ class MainActivity : ComponentActivity() {
             albumTitle = albumTitle,
             albumArtUri = albumArtUri,
             playlistName = playlistName,
+            folderPath = folderPath,
+            folderTitle = folderTitle,
             requestId = SystemClock.elapsedRealtime(),
         )
     }

@@ -11,4 +11,9 @@ sealed interface PlaybackQueue {
         val playlistId: Long,
         val playlistName: String,
     ) : PlaybackQueue
+
+    data class Folder(
+        val directoryPath: String,
+        val directoryTitle: String,
+    ) : PlaybackQueue
 }

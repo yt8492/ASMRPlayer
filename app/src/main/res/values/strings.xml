@@ -29,6 +29,10 @@
     <string name="playlist_select_title">追加先のプレイリスト</string>
     <string name="playlist_track_remove">プレイリストから削除</string>
     <string name="playlist_reorder">並べ替え</string>
+    <string name="file_explorer_title">ファイル</string>
+    <string name="file_explorer_empty">音声ファイルが見つかりません</string>
+    <string name="file_explorer_permission_description">端末内の音声ファイルをフォルダごとに表示するために、音楽ファイルへのアクセス権限を許可してください。</string>
+    <string name="file_explorer_folder_content_description">フォルダ</string>
     <string name="common_create">作成</string>
     <string name="common_cancel">キャンセル</string>
 </resources>

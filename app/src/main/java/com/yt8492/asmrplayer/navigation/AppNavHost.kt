@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -23,6 +24,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.yt8492.asmrplayer.service.PlaybackService
 import com.yt8492.asmrplayer.ui.album.AlbumListRoute
+import com.yt8492.asmrplayer.ui.fileexplorer.FileExplorerRoute
 import com.yt8492.asmrplayer.ui.player.PlaybackQueue
 import com.yt8492.asmrplayer.ui.player.PlayerRoute
 import com.yt8492.asmrplayer.ui.playlist.PlaylistDetailRoute
@@ -45,6 +47,14 @@ fun AppNavHost(
                 }
             }
 
+            PlaybackService.QUEUE_TYPE_FOLDER -> {
+                val path = Uri.encode(destination.folderPath)
+                val title = Uri.encode(destination.folderTitle)
+                navController.navigate("player/folder/${destination.trackId}?path=$path&title=$title") {
+                    launchSingleTop = true
+                }
+            }
+
             else -> {
                 val title = Uri.encode(destination.albumTitle)
                 val art = Uri.encode(destination.albumArtUri?.toString() ?: "")
@@ -60,7 +70,7 @@ fun AppNavHost(
     Scaffold(
         modifier = modifier,
         bottomBar = {
-            if (currentRoute in listOf("album_list", "playlist_list")) {
+            if (currentRoute in listOf("album_list", "playlist_list", "file_explorer")) {
                 NavigationBar {
                     NavigationBarItem(
                         selected = currentRoute == "album_list",
@@ -83,6 +93,17 @@ fun AppNavHost(
                         },
                         icon = { Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = null) },
                         label = { Text("プレイリスト") },
+                    )
+                    NavigationBarItem(
+                        selected = currentRoute == "file_explorer",
+                        onClick = {
+                            navController.navigate("file_explorer") {
+                                launchSingleTop = true
+                                popUpTo("album_list")
+                            }
+                        },
+                        icon = { Icon(Icons.Filled.Folder, contentDescription = null) },
+                        label = { Text("ファイル") },
                     )
                 }
             }
@@ -109,6 +130,17 @@ fun AppNavHost(
                     onPlaylistClick = { playlist ->
                         val name = Uri.encode(playlist.name)
                         navController.navigate("playlist_detail/${playlist.id}?name=$name")
+                    },
+                )
+            }
+            composable("file_explorer") {
+                FileExplorerRoute(
+                    modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+                    onTrackClick = { directoryPath, directoryTitle, tracks, index ->
+                        val trackId = tracks.getOrNull(index)?.id ?: return@FileExplorerRoute
+                        val path = Uri.encode(directoryPath)
+                        val title = Uri.encode(directoryTitle)
+                        navController.navigate("player/folder/$trackId?path=$path&title=$title")
                     },
                 )
             }
@@ -196,6 +228,27 @@ fun AppNavHost(
                     queue = PlaybackQueue.Playlist(
                         playlistId = playlistId,
                         playlistName = playlistName,
+                    ),
+                    startTrackId = trackId,
+                    onBack = { navController.popBackStack() },
+                    modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+                )
+            }
+            composable(
+                route = "player/folder/{trackId}?path={path}&title={title}",
+                arguments = listOf(
+                    navArgument("trackId") { type = NavType.LongType },
+                    navArgument("path") { type = NavType.StringType; defaultValue = "" },
+                    navArgument("title") { type = NavType.StringType; defaultValue = "" },
+                ),
+            ) { backStackEntry ->
+                val trackId = backStackEntry.arguments?.getLong("trackId") ?: return@composable
+                val directoryPath = backStackEntry.arguments?.getString("path").orEmpty()
+                val directoryTitle = backStackEntry.arguments?.getString("title").orEmpty()
+                PlayerRoute(
+                    queue = PlaybackQueue.Folder(
+                        directoryPath = directoryPath,
+                        directoryTitle = directoryTitle,
                     ),
                     startTrackId = trackId,
                     onBack = { navController.popBackStack() },

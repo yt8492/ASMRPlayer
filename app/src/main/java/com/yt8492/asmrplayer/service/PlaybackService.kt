@@ -60,6 +60,8 @@ class PlaybackService : MediaSessionService() {
                         putExtra(EXTRA_ALBUM_TITLE, metadata?.albumTitle?.toString().orEmpty())
                         putExtra(EXTRA_ALBUM_ART_URI, extras?.getString(EXTRA_ALBUM_ART_URI).orEmpty())
                         putExtra(EXTRA_PLAYLIST_NAME, extras?.getString(EXTRA_PLAYLIST_NAME).orEmpty())
+                        putExtra(EXTRA_FOLDER_PATH, extras?.getString(EXTRA_FOLDER_PATH).orEmpty())
+                        putExtra(EXTRA_FOLDER_TITLE, extras?.getString(EXTRA_FOLDER_TITLE).orEmpty())
                     }
                     return PendingIntent.getActivity(
                         this@PlaybackService,
@@ -139,8 +141,11 @@ class PlaybackService : MediaSessionService() {
         const val EXTRA_ALBUM_TITLE = "com.yt8492.asmrplayer.extra.ALBUM_TITLE"
         const val EXTRA_ALBUM_ART_URI = "com.yt8492.asmrplayer.extra.ALBUM_ART_URI"
         const val EXTRA_PLAYLIST_NAME = "com.yt8492.asmrplayer.extra.PLAYLIST_NAME"
+        const val EXTRA_FOLDER_PATH = "com.yt8492.asmrplayer.extra.FOLDER_PATH"
+        const val EXTRA_FOLDER_TITLE = "com.yt8492.asmrplayer.extra.FOLDER_TITLE"
         const val QUEUE_TYPE_ALBUM = "album"
         const val QUEUE_TYPE_PLAYLIST = "playlist"
+        const val QUEUE_TYPE_FOLDER = "folder"
 
         private const val NOTIFICATION_ID = 1
         private const val NOTIFICATION_CHANNEL_ID = "asmrplayer_playback"

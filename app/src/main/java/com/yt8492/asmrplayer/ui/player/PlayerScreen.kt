@@ -149,6 +149,12 @@ fun PlayerRoute(
                                         putLong(PlaybackService.EXTRA_PLAYLIST_ID, queue.playlistId)
                                         putString(PlaybackService.EXTRA_PLAYLIST_NAME, queue.playlistName)
                                     }
+
+                                    is PlaybackQueue.Folder -> {
+                                        putString(PlaybackService.EXTRA_QUEUE_TYPE, PlaybackService.QUEUE_TYPE_FOLDER)
+                                        putString(PlaybackService.EXTRA_FOLDER_PATH, queue.directoryPath)
+                                        putString(PlaybackService.EXTRA_FOLDER_TITLE, queue.directoryTitle)
+                                    }
                                 }
                                 putLong(PlaybackService.EXTRA_TRACK_ID, track.id)
                             },
@@ -437,11 +443,13 @@ private fun formatDuration(durationMs: Long): String {
 private val PlaybackQueue.title: String
     get() = when (this) {
         is PlaybackQueue.Album -> albumTitle
+        is PlaybackQueue.Folder -> directoryTitle
         is PlaybackQueue.Playlist -> playlistName
     }
 
 private val PlaybackQueue.albumArtUri: Uri?
     get() = when (this) {
         is PlaybackQueue.Album -> albumArtUri
+        is PlaybackQueue.Folder -> null
         is PlaybackQueue.Playlist -> null
     }
