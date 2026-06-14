@@ -2,12 +2,14 @@ package com.yt8492.asmrplayer.ui.player
 
 import android.content.ComponentName
 import android.content.ContentUris
+import android.graphics.Paint
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Size
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -52,6 +54,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -400,8 +407,11 @@ fun PlayerScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Slider(
-                        value = positionMs.coerceAtLeast(0L).toFloat(),
+                    ABLoopSlider(
+                        positionMs = positionMs,
+                        durationMs = durationMs,
+                        startMs = loopStartMs,
+                        endMs = loopEndMs,
                         onValueChange = { newValue ->
                             positionMs = newValue.toLong().coerceIn(0, durationMs)
                         },
@@ -416,7 +426,6 @@ fun PlayerScreen(
                                 isLooping = false
                             }
                         },
-                        valueRange = 0f..durationMs.coerceAtLeast(1L).toFloat(),
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -564,6 +573,81 @@ fun PlayerScreen(
             }
         }
     }
+}
+
+@Composable
+private fun ABLoopSlider(
+    positionMs: Long,
+    durationMs: Long,
+    startMs: Long?,
+    endMs: Long?,
+    onValueChange: (Float) -> Unit,
+    onValueChangeFinished: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val startMarkerColor = MaterialTheme.colorScheme.primary
+    val endMarkerColor = MaterialTheme.colorScheme.tertiary
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Slider(
+            value = positionMs.coerceAtLeast(0L).toFloat(),
+            onValueChange = onValueChange,
+            onValueChangeFinished = onValueChangeFinished,
+            valueRange = 0f..durationMs.coerceAtLeast(1L).toFloat(),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawABLoopMarker(
+                label = "A",
+                positionMs = startMs,
+                durationMs = durationMs,
+                color = startMarkerColor,
+            )
+            drawABLoopMarker(
+                label = "B",
+                positionMs = endMs,
+                durationMs = durationMs,
+                color = endMarkerColor,
+            )
+        }
+    }
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawABLoopMarker(
+    label: String,
+    positionMs: Long?,
+    durationMs: Long,
+    color: Color,
+) {
+    if (positionMs == null || durationMs <= 0L) return
+    val fraction = positionMs.coerceIn(0L, durationMs).toFloat() / durationMs.toFloat()
+    val x = size.width * fraction
+    val markerTop = size.height * 0.18f
+    val markerBottom = size.height * 0.82f
+    drawLine(
+        color = color,
+        start = Offset(x = x, y = markerTop),
+        end = Offset(x = x, y = markerBottom),
+        strokeWidth = 3.dp.toPx(),
+        cap = StrokeCap.Round,
+    )
+
+    val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        textSize = 11.dp.toPx()
+        this.color = color.toArgb()
+        typeface = android.graphics.Typeface.DEFAULT_BOLD
+    }
+    drawContext.canvas.nativeCanvas.drawText(
+        label,
+        x.coerceIn(10.dp.toPx(), size.width - 10.dp.toPx()),
+        12.dp.toPx(),
+        labelPaint,
+    )
 }
 
 @Composable
