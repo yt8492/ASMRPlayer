@@ -29,7 +29,7 @@ class TrackRepositoryImpl(
             ${MediaStore.Audio.Media.IS_MUSIC}!=0
         """
         val selectionArgs = arrayOf(albumId.toString())
-        val sortOrder = "${MediaStore.Audio.Media.TRACK} ASC"
+        val sortOrder = "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC"
         val contentResolver = context.contentResolver
         val tracks = mutableListOf<Track>()
         contentResolver.query(
