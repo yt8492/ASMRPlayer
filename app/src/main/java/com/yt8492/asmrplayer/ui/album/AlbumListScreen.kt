@@ -61,6 +61,7 @@ import coil.compose.AsyncImage
 fun AlbumListRoute(
     modifier: Modifier = Modifier,
     onAlbumClick: (Album) -> Unit,
+    bottomBar: @Composable () -> Unit = {},
     viewModel: AlbumListViewModel = viewModel(
         factory = AlbumListViewModel.provideFactory(LocalContext.current),
     ),
@@ -100,6 +101,7 @@ fun AlbumListRoute(
         onRequestPermission = { permissionLauncher.launch(permission) },
         onRetry = viewModel::loadAlbums,
         onAlbumClick = onAlbumClick,
+        bottomBar = bottomBar,
         modifier = modifier,
     )
 }
@@ -113,6 +115,7 @@ fun AlbumListScreen(
     onRetry: () -> Unit,
     onAlbumClick: (Album) -> Unit,
     modifier: Modifier = Modifier,
+    bottomBar: @Composable () -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -130,6 +133,7 @@ fun AlbumListScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = bottomBar,
     ) { innerPadding ->
         Box(
             modifier = Modifier

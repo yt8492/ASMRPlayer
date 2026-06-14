@@ -67,6 +67,7 @@ import java.util.concurrent.TimeUnit
 fun FileExplorerRoute(
     onTrackClick: (directoryPath: String, directoryTitle: String, tracks: List<Track>, index: Int) -> Unit,
     modifier: Modifier = Modifier,
+    bottomBar: @Composable () -> Unit = {},
     viewModel: FileExplorerViewModel = viewModel(
         factory = FileExplorerViewModel.provideFactory(LocalContext.current),
     ),
@@ -123,6 +124,7 @@ fun FileExplorerRoute(
         onCreatePlaylistAndAddTrack = viewModel::createPlaylistAndAddTrack,
         onErrorShown = viewModel::consumeError,
         onPlaylistMessageShown = viewModel::consumePlaylistMessage,
+        bottomBar = bottomBar,
         modifier = modifier,
     )
 }
@@ -142,6 +144,7 @@ fun FileExplorerScreen(
     onErrorShown: () -> Unit,
     onPlaylistMessageShown: () -> Unit,
     modifier: Modifier = Modifier,
+    bottomBar: @Composable () -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedTrack by remember { mutableStateOf<Track?>(null) }
@@ -183,6 +186,7 @@ fun FileExplorerScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = bottomBar,
     ) { innerPadding ->
         Box(
             modifier = Modifier

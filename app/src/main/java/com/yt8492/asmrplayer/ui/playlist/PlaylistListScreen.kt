@@ -49,6 +49,7 @@ import com.yt8492.asmrplayer.data.model.Playlist
 fun PlaylistListRoute(
     onPlaylistClick: (Playlist) -> Unit,
     modifier: Modifier = Modifier,
+    bottomBar: @Composable () -> Unit = {},
     viewModel: PlaylistListViewModel = viewModel(
         factory = PlaylistListViewModel.provideFactory(LocalContext.current),
     ),
@@ -60,6 +61,7 @@ fun PlaylistListRoute(
         onCreatePlaylist = viewModel::createPlaylist,
         onDeletePlaylist = viewModel::deletePlaylist,
         onErrorShown = viewModel::consumeError,
+        bottomBar = bottomBar,
         modifier = modifier,
     )
 }
@@ -73,6 +75,7 @@ fun PlaylistListScreen(
     onDeletePlaylist: (Long) -> Unit,
     onErrorShown: () -> Unit,
     modifier: Modifier = Modifier,
+    bottomBar: @Composable () -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     var isCreateDialogVisible by remember { mutableStateOf(false) }
@@ -98,6 +101,7 @@ fun PlaylistListScreen(
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = bottomBar,
     ) { innerPadding ->
         Box(
             modifier = Modifier
