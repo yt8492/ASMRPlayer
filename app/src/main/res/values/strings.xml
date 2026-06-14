@@ -16,6 +16,16 @@
     <string name="player_prev">前の曲</string>
     <string name="player_next">次の曲</string>
     <string name="player_connection_error">再生サービスに接続できませんでした</string>
+    <string name="player_loop_button_label">A-B</string>
+    <string name="player_loop_not_set">未設定</string>
+    <string name="player_loop_start_point">A %1$s</string>
+    <string name="player_loop_range">%1$s - %2$s</string>
+    <string name="player_loop_active_range">ループ中 %1$s - %2$s</string>
+    <string name="player_loop_set_start">A点を設定</string>
+    <string name="player_loop_set_end_and_start">B点を設定してループ開始</string>
+    <string name="player_loop_start">A-Bループ開始</string>
+    <string name="player_loop_stop">A-Bループ停止</string>
+    <string name="player_loop_clear">A-Bループ解除</string>
     <string name="notification_channel_name">音楽の再生</string>
     <string name="playlist_list_title">プレイリスト</string>
     <string name="playlist_detail_title">プレイリスト</string>

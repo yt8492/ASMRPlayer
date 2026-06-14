@@ -7,19 +7,23 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Size
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Album
@@ -53,6 +57,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -193,6 +200,9 @@ fun PlayerRoute(
             queueTitle = queue.title,
             fallbackAlbumArtUri = queue.albumArtUri,
             onBack = onBack,
+            onCurrentTrackChanged = viewModel::onCurrentTrackChanged,
+            onSaveTrackLoop = viewModel::saveTrackLoop,
+            onDeleteTrackLoop = viewModel::deleteTrackLoop,
             modifier = modifier,
         )
     }
@@ -206,6 +216,9 @@ fun PlayerScreen(
     queueTitle: String,
     fallbackAlbumArtUri: Uri?,
     onBack: () -> Unit,
+    onCurrentTrackChanged: (Long?) -> Unit,
+    onSaveTrackLoop: (trackId: Long, startMs: Long, endMs: Long) -> Unit,
+    onDeleteTrackLoop: (trackId: Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var isPlaying by remember { mutableStateOf(player.isPlaying) }
@@ -214,6 +227,10 @@ fun PlayerScreen(
     var durationMs by remember { mutableLongStateOf(0L) }
     var seekFeedback by remember { mutableStateOf<SeekFeedback?>(null) }
     var seekFeedbackEventId by remember { mutableIntStateOf(0) }
+    var loopTrackId by remember { mutableStateOf<Long?>(null) }
+    var loopStartMs by remember { mutableStateOf<Long?>(null) }
+    var loopEndMs by remember { mutableStateOf<Long?>(null) }
+    var isLooping by remember { mutableStateOf(false) }
 
     DisposableEffect(player) {
         val listener = object : Player.Listener {
@@ -231,8 +248,15 @@ fun PlayerScreen(
 
     LaunchedEffect(player) {
         while (true) {
-            positionMs = player.currentPosition.coerceAtLeast(0L)
+            val currentPositionMs = player.currentPosition.coerceAtLeast(0L)
             durationMs = player.duration.coerceAtLeast(0L)
+            val activeRange = TrackLoopRangeFactory.create(loopStartMs, loopEndMs, durationMs)
+            if (isLooping && activeRange != null && currentPositionMs >= activeRange.endMs) {
+                player.seekTo(activeRange.startMs)
+                positionMs = activeRange.startMs
+            } else {
+                positionMs = currentPositionMs
+            }
             delay(500)
         }
     }
@@ -245,7 +269,28 @@ fun PlayerScreen(
     }
 
     val currentTrack = uiState.tracks.getOrNull(currentIndex)
-    val progress = if (durationMs > 0) positionMs.toFloat() / durationMs.toFloat() else 0f
+    val currentTrackId = currentTrack?.id
+
+    LaunchedEffect(currentTrackId) {
+        onCurrentTrackChanged(currentTrackId)
+        loopTrackId = currentTrackId
+        loopStartMs = null
+        loopEndMs = null
+        isLooping = false
+    }
+
+    LaunchedEffect(currentTrackId, uiState.currentTrackLoop) {
+        val trackLoop = uiState.currentTrackLoop
+        if (trackLoop != null && trackLoop.trackId == currentTrackId) {
+            loopTrackId = trackLoop.trackId
+            loopStartMs = trackLoop.startMs
+            loopEndMs = trackLoop.endMs
+        } else if (trackLoop == null && loopTrackId == currentTrackId) {
+            loopStartMs = null
+            loopEndMs = null
+        }
+        isLooping = false
+    }
 
     Scaffold(
         modifier = modifier,
@@ -307,6 +352,14 @@ fun PlayerScreen(
                             seekFeedbackEventId += 1
                             player.seekRelative(seekOffsetMs)
                             positionMs = player.currentPosition.coerceAtLeast(0L)
+                            val activeRange = TrackLoopRangeFactory.create(loopStartMs, loopEndMs, durationMs)
+                            if (
+                                isLooping &&
+                                activeRange != null &&
+                                TrackLoopRangeFactory.shouldStopLoopAfterUserSeek(activeRange, positionMs)
+                            ) {
+                                isLooping = false
+                            }
                         },
                     )
                 },
@@ -314,6 +367,7 @@ fun PlayerScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
                     .padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -353,6 +407,14 @@ fun PlayerScreen(
                         },
                         onValueChangeFinished = {
                             player.seekTo(positionMs)
+                            val activeRange = TrackLoopRangeFactory.create(loopStartMs, loopEndMs, durationMs)
+                            if (
+                                isLooping &&
+                                activeRange != null &&
+                                TrackLoopRangeFactory.shouldStopLoopAfterUserSeek(activeRange, positionMs)
+                            ) {
+                                isLooping = false
+                            }
                         },
                         valueRange = 0f..durationMs.coerceAtLeast(1L).toFloat(),
                     )
@@ -371,9 +433,16 @@ fun PlayerScreen(
                     }
                 }
 
+                TrackLoopStatusText(
+                    startMs = loopStartMs,
+                    endMs = loopEndMs,
+                    durationMs = durationMs,
+                    isLooping = isLooping,
+                )
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
                     IconButton(
                         onClick = { player.seekToPreviousMediaItem() },
@@ -387,7 +456,68 @@ fun PlayerScreen(
                                 .height(32.dp),
                         )
                     }
-                    Spacer(modifier = Modifier.width(32.dp))
+                    ABLoopButton(
+                        state = ABLoopButtonState(
+                            startMs = loopStartMs,
+                            endMs = loopEndMs,
+                            isLooping = isLooping,
+                        ),
+                        enabled = currentTrackId != null,
+                        onClick = {
+                            val state = ABLoopButtonState(
+                                startMs = loopStartMs,
+                                endMs = loopEndMs,
+                                isLooping = isLooping,
+                            )
+                            when (
+                                val action = ABLoopButtonStateMachine.onClick(
+                                    state = state,
+                                    positionMs = positionMs,
+                                    durationMs = durationMs,
+                                )
+                            ) {
+                                is ABLoopButtonAction.SetStart -> {
+                                    loopTrackId = currentTrackId
+                                    loopStartMs = action.startMs
+                                    loopEndMs = null
+                                    isLooping = false
+                                }
+
+                                is ABLoopButtonAction.SetEndAndStartLoop -> {
+                                    val trackId = currentTrackId ?: return@ABLoopButton
+                                    loopTrackId = trackId
+                                    loopStartMs = action.range.startMs
+                                    loopEndMs = action.range.endMs
+                                    onSaveTrackLoop(trackId, action.range.startMs, action.range.endMs)
+                                    player.seekTo(action.range.startMs)
+                                    positionMs = action.range.startMs
+                                    isLooping = true
+                                }
+
+                                is ABLoopButtonAction.StartLoop -> {
+                                    player.seekTo(action.range.startMs)
+                                    positionMs = action.range.startMs
+                                    isLooping = true
+                                }
+
+                                ABLoopButtonAction.StopLoop -> {
+                                    isLooping = false
+                                }
+
+                                ABLoopButtonAction.Clear,
+                                ABLoopButtonAction.None,
+                                -> Unit
+                            }
+                        },
+                        onLongClick = {
+                            if (ABLoopButtonStateMachine.onLongClick() == ABLoopButtonAction.Clear) {
+                                currentTrackId?.let(onDeleteTrackLoop)
+                                loopStartMs = null
+                                loopEndMs = null
+                                isLooping = false
+                            }
+                        },
+                    )
                     IconButton(
                         onClick = {
                             if (player.isPlaying) {
@@ -409,7 +539,6 @@ fun PlayerScreen(
                                 .height(48.dp),
                         )
                     }
-                    Spacer(modifier = Modifier.width(32.dp))
                     IconButton(
                         onClick = { player.seekToNextMediaItem() },
                         enabled = player.hasNextMediaItem(),
@@ -434,6 +563,90 @@ fun PlayerScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun TrackLoopStatusText(
+    startMs: Long?,
+    endMs: Long?,
+    durationMs: Long,
+    isLooping: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val loopRange = TrackLoopRangeFactory.create(startMs, endMs, durationMs)
+    val text = when {
+        isLooping && loopRange != null -> stringResource(
+            id = R.string.player_loop_active_range,
+            formatDuration(loopRange.startMs),
+            formatDuration(loopRange.endMs),
+        )
+
+        loopRange != null -> stringResource(
+            id = R.string.player_loop_range,
+            formatDuration(loopRange.startMs),
+            formatDuration(loopRange.endMs),
+        )
+
+        startMs != null -> stringResource(id = R.string.player_loop_start_point, formatDuration(startMs))
+        else -> stringResource(id = R.string.player_loop_not_set)
+    }
+    Text(
+        text = text,
+        modifier = modifier.fillMaxWidth(),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ABLoopButton(
+    state: ABLoopButtonState,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val loopRange = TrackLoopRangeFactory.create(state.startMs, state.endMs, Long.MAX_VALUE)
+    val clickLabel = when {
+        state.isLooping -> stringResource(id = R.string.player_loop_stop)
+        loopRange != null -> stringResource(id = R.string.player_loop_start)
+        state.startMs != null -> stringResource(id = R.string.player_loop_set_end_and_start)
+        else -> stringResource(id = R.string.player_loop_set_start)
+    }
+    val containerColor = if (state.isLooping) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val contentColor = if (state.isLooping) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Box(
+        modifier = modifier
+            .size(56.dp)
+            .clip(MaterialTheme.shapes.extraLarge)
+            .background(containerColor)
+            .semantics { contentDescription = clickLabel }
+            .combinedClickable(
+                enabled = enabled,
+                role = Role.Button,
+                onClickLabel = clickLabel,
+                onLongClickLabel = stringResource(id = R.string.player_loop_clear),
+                onLongClick = onLongClick,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = stringResource(id = R.string.player_loop_button_label),
+            color = contentColor,
+            style = MaterialTheme.typography.labelLarge,
+        )
     }
 }
 

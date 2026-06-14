@@ -9,9 +9,13 @@ import com.yt8492.asmrplayer.data.repository.PlaylistRepository
 import com.yt8492.asmrplayer.data.repository.PlaylistRepositoryImpl
 import com.yt8492.asmrplayer.data.repository.TrackRepository
 import com.yt8492.asmrplayer.data.repository.TrackRepositoryImpl
+import com.yt8492.asmrplayer.data.repository.TrackLoopRepository
+import com.yt8492.asmrplayer.data.repository.TrackLoopRepositoryImpl
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -20,9 +24,12 @@ class PlayerViewModel(
     private val startTrackId: Long,
     private val trackRepository: TrackRepository,
     private val playlistRepository: PlaylistRepository,
+    private val trackLoopRepository: TrackLoopRepository,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
+    private var currentTrackLoopJob: Job? = null
+    private var currentTrackId: Long? = null
 
     init {
         loadTracks()
@@ -60,17 +67,55 @@ class PlayerViewModel(
         }
     }
 
+    fun onCurrentTrackChanged(trackId: Long?) {
+        if (currentTrackId == trackId) return
+        currentTrackId = trackId
+        currentTrackLoopJob?.cancel()
+        if (trackId == null) {
+            _uiState.update { it.copy(currentTrackLoop = null) }
+            return
+        }
+        currentTrackLoopJob = viewModelScope.launch {
+            trackLoopRepository.observeTrackLoop(trackId).collectLatest { trackLoop ->
+                _uiState.update { it.copy(currentTrackLoop = trackLoop) }
+            }
+        }
+    }
+
+    fun saveTrackLoop(trackId: Long, startMs: Long, endMs: Long) {
+        if (startMs >= endMs) return
+        viewModelScope.launch {
+            trackLoopRepository.saveTrackLoop(trackId, startMs, endMs)
+        }
+    }
+
+    fun deleteTrackLoop(trackId: Long) {
+        viewModelScope.launch {
+            trackLoopRepository.deleteTrackLoop(trackId)
+        }
+    }
+
     companion object {
         fun provideFactory(context: Context, queue: PlaybackQueue, startTrackId: Long): ViewModelProvider.Factory {
             val applicationContext = context.applicationContext
             return object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    val database = AppDatabase.getInstance(applicationContext)
                     val trackRepository: TrackRepository = TrackRepositoryImpl(applicationContext)
                     val playlistRepository: PlaylistRepository = PlaylistRepositoryImpl(
-                        AppDatabase.getInstance(applicationContext).playlistDao(),
+                        database.playlistDao(),
+                    )
+                    val trackLoopRepository: TrackLoopRepository = TrackLoopRepositoryImpl(
+                        database.trackLoopDao(),
                     )
                     @Suppress("UNCHECKED_CAST")
-                    return PlayerViewModel(queue, startTrackId, trackRepository, playlistRepository) as T
+                    return PlayerViewModel(
+                        queue = queue,
+                        startTrackId = startTrackId,
+                        trackRepository = trackRepository,
+                        playlistRepository = playlistRepository,
+                        trackLoopRepository = trackLoopRepository,
+                    ) as T
                 }
             }
         }
