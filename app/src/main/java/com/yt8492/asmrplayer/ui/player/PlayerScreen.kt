@@ -31,6 +31,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
@@ -238,6 +240,7 @@ fun PlayerScreen(
     var loopStartMs by remember { mutableStateOf<Long?>(null) }
     var loopEndMs by remember { mutableStateOf<Long?>(null) }
     var isLooping by remember { mutableStateOf(false) }
+    var repeatMode by remember { mutableIntStateOf(player.repeatMode) }
 
     DisposableEffect(player) {
         val listener = object : Player.Listener {
@@ -245,6 +248,7 @@ fun PlayerScreen(
                 isPlaying = player.isPlaying
                 currentIndex = player.currentMediaItemIndex
                 durationMs = player.duration.coerceAtLeast(0L)
+                repeatMode = player.repeatMode
             }
         }
         player.addListener(listener)
@@ -451,7 +455,7 @@ fun PlayerScreen(
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     IconButton(
                         onClick = { player.seekToPreviousMediaItem() },
@@ -548,6 +552,14 @@ fun PlayerScreen(
                                 .height(48.dp),
                         )
                     }
+                    RepeatModeButton(
+                        repeatMode = repeatMode,
+                        onClick = {
+                            val nextRepeatMode = repeatMode.nextRepeatMode()
+                            player.repeatMode = nextRepeatMode
+                            repeatMode = nextRepeatMode
+                        },
+                    )
                     IconButton(
                         onClick = { player.seekToNextMediaItem() },
                         enabled = player.hasNextMediaItem(),
@@ -572,6 +584,45 @@ fun PlayerScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun RepeatModeButton(
+    repeatMode: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val active = repeatMode != Player.REPEAT_MODE_OFF
+    val contentDescription = when (repeatMode) {
+        Player.REPEAT_MODE_ONE -> stringResource(id = R.string.player_repeat_one)
+        Player.REPEAT_MODE_ALL -> stringResource(id = R.string.player_repeat_all)
+        else -> stringResource(id = R.string.player_repeat_off)
+    }
+    val tint = if (active) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    IconButton(
+        onClick = onClick,
+        modifier = modifier.semantics {
+            this.contentDescription = contentDescription
+        },
+    ) {
+        Icon(
+            imageVector = if (repeatMode == Player.REPEAT_MODE_ONE) {
+                Icons.Filled.RepeatOne
+            } else {
+                Icons.Filled.Repeat
+            },
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier
+                .width(32.dp)
+                .height(32.dp),
+        )
     }
 }
 
@@ -808,6 +859,12 @@ private fun Player.seekRelative(offsetMs: Long) {
         targetPositionMs.coerceAtLeast(0L)
     }
     seekTo(clampedPositionMs)
+}
+
+private fun Int.nextRepeatMode(): Int = when (this) {
+    Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ONE
+    Player.REPEAT_MODE_ONE -> Player.REPEAT_MODE_ALL
+    else -> Player.REPEAT_MODE_OFF
 }
 
 private const val DOUBLE_TAP_SEEK_INTERVAL_MS = 10_000L

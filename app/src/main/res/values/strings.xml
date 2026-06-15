@@ -15,6 +15,9 @@
     <string name="player_pause">一時停止</string>
     <string name="player_prev">前の曲</string>
     <string name="player_next">次の曲</string>
+    <string name="player_repeat_off">ループしない</string>
+    <string name="player_repeat_one">現在のトラックをループ</string>
+    <string name="player_repeat_all">現在のキューをループ</string>
     <string name="player_connection_error">再生サービスに接続できませんでした</string>
     <string name="player_loop_button_label">A-B</string>
     <string name="player_loop_not_set">未設定</string>
