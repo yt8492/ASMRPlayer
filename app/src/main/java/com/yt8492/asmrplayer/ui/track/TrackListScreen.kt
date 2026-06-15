@@ -9,6 +9,7 @@ import android.provider.MediaStore
 import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +36,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
@@ -44,6 +46,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -155,6 +159,7 @@ fun TrackListScreen(
 
     Scaffold(
         modifier = modifier,
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = { Text(text = uiState.album?.title ?: "") },
@@ -166,6 +171,11 @@ fun TrackListScreen(
                         )
                     }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -173,7 +183,8 @@ fun TrackListScreen(
         Box(
             modifier = Modifier
                 .padding(innerPadding)
-                .fillMaxSize(),
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
         ) {
             when {
                 !hasPermission -> PermissionRequest(
@@ -287,17 +298,34 @@ private fun TrackList(
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
-        modifier = modifier,
+        modifier = modifier.background(MaterialTheme.colorScheme.background),
     ) {
         item {
-            AlbumArt(
-                albumId = album.id,
-                albumArtUri = album.albumArtUri,
-                contentDescription = album.title,
-                modifier = Modifier
-                    .padding(horizontal = 24.dp, vertical = 16.dp)
-                    .fillMaxWidth(),
-            )
+            Column(
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                AlbumArt(
+                    albumId = album.id,
+                    albumArtUri = album.albumArtUri,
+                    contentDescription = album.title,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = album.title,
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = stringResource(id = R.string.album_track_count, tracks.size),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
         itemsIndexed(
             items = tracks,
@@ -309,12 +337,24 @@ private fun TrackList(
                 null
             }
             ListItem(
-                modifier = Modifier.clickable { onTrackClick(index) },
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .clip(MaterialTheme.shapes.large)
+                    .clickable { onTrackClick(index) },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                leadingContent = {
+                    Text(
+                        text = displayTrackNumber?.toString() ?: (index + 1).toString(),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
                 headlineContent = {
                     Text(
                         text = track.title,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onBackground,
                     )
                 },
                 supportingContent = {
@@ -322,6 +362,7 @@ private fun TrackList(
                         text = track.artist,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 },
                 trailingContent = {
@@ -329,15 +370,10 @@ private fun TrackList(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        displayTrackNumber?.let { number ->
-                            Text(
-                                text = number.toString(),
-                                style = MaterialTheme.typography.labelMedium,
-                            )
-                        }
                         Text(
                             text = formatDuration(track.durationMs),
                             style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         IconButton(onClick = { onAddToPlaylistClick(track) }) {
                             Icon(
@@ -348,7 +384,10 @@ private fun TrackList(
                     }
                 },
             )
-            HorizontalDivider()
+            HorizontalDivider(
+                modifier = Modifier.padding(start = 64.dp, end = 24.dp),
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
+            )
         }
     }
 }
@@ -461,7 +500,7 @@ private fun AlbumArt(
             model = bitmap,
             contentDescription = contentDescription,
             modifier = modifier
-                .aspectRatio(1f)
+                .aspectRatio(1.45f)
                 .clip(MaterialTheme.shapes.medium),
             contentScale = ContentScale.Crop,
             placeholder = rememberVectorPainter(Icons.Filled.Album),
@@ -473,7 +512,7 @@ private fun AlbumArt(
             model = albumArtUri,
             contentDescription = contentDescription,
             modifier = modifier
-                .aspectRatio(1f)
+                .aspectRatio(1.45f)
                 .clip(MaterialTheme.shapes.medium),
             contentScale = ContentScale.Crop,
             placeholder = rememberVectorPainter(Icons.Filled.Album),

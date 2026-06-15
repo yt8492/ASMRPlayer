@@ -8,7 +8,9 @@ import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -248,24 +250,37 @@ private fun MainNavigationBar(
     onNavigateToPlaylists: () -> Unit,
     onNavigateToFiles: () -> Unit,
 ) {
-    NavigationBar {
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+        tonalElevation = androidx.compose.ui.unit.Dp.Hairline,
+    ) {
+        val itemColors = NavigationBarItemDefaults.colors(
+            selectedIconColor = MaterialTheme.colorScheme.primary,
+            selectedTextColor = MaterialTheme.colorScheme.primary,
+            indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         NavigationBarItem(
             selected = currentRoute == "album_list",
             onClick = onNavigateToAlbums,
             icon = { Icon(Icons.Filled.Album, contentDescription = null) },
             label = { Text("アルバム") },
+            colors = itemColors,
         )
         NavigationBarItem(
             selected = currentRoute == "playlist_list",
             onClick = onNavigateToPlaylists,
             icon = { Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = null) },
             label = { Text("プレイリスト") },
+            colors = itemColors,
         )
         NavigationBarItem(
             selected = currentRoute == "file_explorer",
             onClick = onNavigateToFiles,
             icon = { Icon(Icons.Filled.Folder, contentDescription = null) },
             label = { Text("ファイル") },
+            colors = itemColors,
         )
     }
 }

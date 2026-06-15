@@ -9,12 +9,11 @@ import android.provider.MediaStore
 import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -28,12 +27,14 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -127,9 +129,26 @@ fun AlbumListScreen(
 
     Scaffold(
         modifier = modifier,
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text(text = stringResource(id = R.string.album_list_title)) },
+                title = {
+                    Column {
+                        Text(
+                            text = stringResource(id = R.string.app_name),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            text = stringResource(id = R.string.album_list_title),
+                            style = MaterialTheme.typography.headlineSmall,
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                ),
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -138,7 +157,8 @@ fun AlbumListScreen(
         Box(
             modifier = Modifier
                 .padding(innerPadding)
-                .fillMaxSize(),
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
         ) {
             when {
                 !hasPermission -> PermissionRequest(
@@ -223,14 +243,28 @@ private fun AlbumList(
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
-        modifier = modifier,
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.background),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
+        item {
+            Text(
+                text = "寝る前に聴く作品を選ぶ",
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         items(
             items = albums,
             key = { it.id },
         ) { album ->
             ListItem(
-                modifier = Modifier.clickable { onAlbumClick(album) },
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .clip(MaterialTheme.shapes.large)
+                    .clickable { onAlbumClick(album) },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                 leadingContent = {
                     AlbumArt(
                         albumId = album.id,
@@ -246,20 +280,33 @@ private fun AlbumList(
                     )
                 },
                 supportingContent = {
-                    Text(
-                        text = album.artist,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = album.artist,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = stringResource(id = R.string.album_track_count, album.trackCount),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 },
                 trailingContent = {
-                    Text(
-                        text = stringResource(id = R.string.album_track_count, album.trackCount),
-                        style = MaterialTheme.typography.labelMedium,
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(MaterialTheme.shapes.extraLarge)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.72f)),
                     )
                 },
             )
-            HorizontalDivider()
+            HorizontalDivider(
+                modifier = Modifier.padding(start = 96.dp, end = 24.dp),
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
+            )
         }
     }
 }
@@ -281,7 +328,7 @@ private fun AlbumArt(
             model = bitmap,
             contentDescription = contentDescription,
             modifier = modifier
-                .size(56.dp)
+                .size(72.dp)
                 .clip(MaterialTheme.shapes.medium),
             contentScale = ContentScale.Crop,
             placeholder = rememberVectorPainter(Icons.Filled.Album),
@@ -293,7 +340,7 @@ private fun AlbumArt(
             model = albumArtUri,
             contentDescription = contentDescription,
             modifier = modifier
-                .size(56.dp)
+                .size(72.dp)
                 .clip(MaterialTheme.shapes.medium),
             contentScale = ContentScale.Crop,
             placeholder = rememberVectorPainter(Icons.Filled.Album),

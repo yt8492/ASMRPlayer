@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -44,6 +45,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -305,9 +307,10 @@ fun PlayerScreen(
 
     Scaffold(
         modifier = modifier,
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text(text = queueTitle) },
+                title = { Text(text = "再生中") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -316,6 +319,11 @@ fun PlayerScreen(
                         )
                     }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
             )
         },
     ) { innerPadding ->
@@ -349,6 +357,7 @@ fun PlayerScreen(
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
                 .pointerInput(player) {
                     detectTapGestures(
                         onDoubleTap = { offset ->
@@ -379,37 +388,41 @@ fun PlayerScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp),
+                    .padding(horizontal = 24.dp, vertical = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                AlbumArt(
+                    albumId = currentTrack?.albumId,
+                    albumArtUri = currentTrack?.albumArtUri ?: fallbackAlbumArtUri,
+                    contentDescription = currentTrack?.albumTitle ?: queueTitle,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
                         text = currentTrack?.title ?: stringResource(id = R.string.player_no_track),
                         style = MaterialTheme.typography.headlineSmall,
-                        maxLines = 1,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = currentTrack?.artist ?: "",
+                        text = currentTrack?.artist ?: queueTitle,
                         style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
 
-                AlbumArt(
-                    albumId = currentTrack?.albumId,
-                    albumArtUri = currentTrack?.albumArtUri ?: fallbackAlbumArtUri,
-                    contentDescription = currentTrack?.albumTitle ?: queueTitle,
-                )
-
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     ABLoopSlider(
                         positionMs = positionMs,
@@ -438,10 +451,12 @@ fun PlayerScreen(
                         Text(
                             text = formatDuration(positionMs),
                             style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Text(
                             text = formatDuration(durationMs),
                             style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -455,7 +470,7 @@ fun PlayerScreen(
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     IconButton(
                         onClick = { player.seekToPreviousMediaItem() },
@@ -539,6 +554,9 @@ fun PlayerScreen(
                                 player.play()
                             }
                         },
+                        modifier = Modifier
+                            .size(88.dp)
+                            .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
                     ) {
                         Icon(
                             imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
@@ -550,6 +568,7 @@ fun PlayerScreen(
                             modifier = Modifier
                                 .width(48.dp)
                                 .height(48.dp),
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         )
                     }
                     RepeatModeButton(
@@ -573,6 +592,11 @@ fun PlayerScreen(
                         )
                     }
                 }
+
+                NextTrackPanel(
+                    trackTitle = uiState.tracks.getOrNull(currentIndex + 1)?.title,
+                    trackArtist = uiState.tracks.getOrNull(currentIndex + 1)?.artist,
+                )
             }
 
             seekFeedback?.let { feedback ->
@@ -731,7 +755,47 @@ private fun TrackLoopStatusText(
         modifier = modifier.fillMaxWidth(),
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
     )
+}
+
+@Composable
+private fun NextTrackPanel(
+    trackTitle: String?,
+    trackArtist: String?,
+    modifier: Modifier = Modifier,
+) {
+    if (trackTitle == null) return
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f))
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = "次のトラック",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Text(
+            text = trackTitle,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (!trackArtist.isNullOrBlank()) {
+            Text(
+                text = trackArtist,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -821,7 +885,7 @@ private fun AlbumArt(
             contentDescription = contentDescription,
             modifier = modifier
                 .aspectRatio(1f)
-                .clip(MaterialTheme.shapes.medium),
+                .clip(MaterialTheme.shapes.large),
             contentScale = ContentScale.Crop,
             placeholder = rememberVectorPainter(Icons.Filled.Album),
             error = rememberVectorPainter(Icons.Filled.Album),
@@ -833,7 +897,7 @@ private fun AlbumArt(
             contentDescription = contentDescription,
             modifier = modifier
                 .aspectRatio(1f)
-                .clip(MaterialTheme.shapes.medium),
+                .clip(MaterialTheme.shapes.large),
             contentScale = ContentScale.Crop,
             placeholder = rememberVectorPainter(Icons.Filled.Album),
             error = rememberVectorPainter(Icons.Filled.Album),
