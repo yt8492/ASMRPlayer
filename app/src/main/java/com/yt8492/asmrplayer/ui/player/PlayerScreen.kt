@@ -985,7 +985,7 @@ private fun AlbumArt(
             modifier = modifier
                 .aspectRatio(1f)
                 .clip(MaterialTheme.shapes.large),
-            contentScale = ContentScale.Crop,
+            contentScale = ContentScale.Fit,
             placeholder = rememberVectorPainter(Icons.Filled.Album),
             error = rememberVectorPainter(Icons.Filled.Album),
             fallback = rememberVectorPainter(Icons.Filled.Album),
@@ -997,7 +997,7 @@ private fun AlbumArt(
             modifier = modifier
                 .aspectRatio(1f)
                 .clip(MaterialTheme.shapes.large),
-            contentScale = ContentScale.Crop,
+            contentScale = ContentScale.Fit,
             placeholder = rememberVectorPainter(Icons.Filled.Album),
             error = rememberVectorPainter(Icons.Filled.Album),
             fallback = rememberVectorPainter(Icons.Filled.Album),
