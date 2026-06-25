@@ -135,8 +135,8 @@ class PlayerViewModel(
     fun saveQueueArtwork(imageUri: Uri) {
         val target = queue.artworkTarget() ?: return
         viewModelScope.launch {
-            val previousUri = queueArtworkRepository.getQueueArtwork(target.queueType, target.queueId)?.imageUri
-            queueArtworkRepository.saveQueueArtwork(target.queueType, target.queueId, imageUri)
+            val previousUri = queueArtworkRepository.getQueueArtwork(target.queueType, target.queueKey)?.imageUri
+            queueArtworkRepository.saveQueueArtwork(target.queueType, target.queueKey, imageUri)
             if (previousUri != null && previousUri != imageUri) {
                 releaseArtworkPermissionIfUnused(previousUri)
             }
@@ -146,8 +146,8 @@ class PlayerViewModel(
     fun deleteQueueArtwork() {
         val target = queue.artworkTarget() ?: return
         viewModelScope.launch {
-            val previousUri = queueArtworkRepository.getQueueArtwork(target.queueType, target.queueId)?.imageUri
-            queueArtworkRepository.deleteQueueArtwork(target.queueType, target.queueId)
+            val previousUri = queueArtworkRepository.getQueueArtwork(target.queueType, target.queueKey)?.imageUri
+            queueArtworkRepository.deleteQueueArtwork(target.queueType, target.queueKey)
             previousUri?.let { releaseArtworkPermissionIfUnused(it) }
         }
     }
@@ -160,7 +160,7 @@ class PlayerViewModel(
         }
         queueArtworkJob?.cancel()
         queueArtworkJob = viewModelScope.launch {
-            queueArtworkRepository.observeQueueArtwork(target.queueType, target.queueId).collectLatest { queueArtwork ->
+            queueArtworkRepository.observeQueueArtwork(target.queueType, target.queueKey).collectLatest { queueArtwork ->
                 _uiState.update { it.copy(queueArtworkUri = queueArtwork?.imageUri) }
             }
         }
@@ -180,9 +180,9 @@ class PlayerViewModel(
 
     private fun PlaybackQueue.artworkTarget(): QueueArtworkTarget? {
         return when (this) {
-            is PlaybackQueue.Album -> QueueArtworkTarget(QUEUE_TYPE_ALBUM, albumId)
-            is PlaybackQueue.Playlist -> QueueArtworkTarget(QUEUE_TYPE_PLAYLIST, playlistId)
-            is PlaybackQueue.Folder -> null
+            is PlaybackQueue.Album -> QueueArtworkTarget(QUEUE_TYPE_ALBUM, albumId.toString())
+            is PlaybackQueue.Playlist -> QueueArtworkTarget(QUEUE_TYPE_PLAYLIST, playlistId.toString())
+            is PlaybackQueue.Folder -> QueueArtworkTarget(QUEUE_TYPE_FOLDER, directoryPath)
         }
     }
 
@@ -222,10 +222,11 @@ class PlayerViewModel(
 
         private const val QUEUE_TYPE_ALBUM = "album"
         private const val QUEUE_TYPE_PLAYLIST = "playlist"
+        private const val QUEUE_TYPE_FOLDER = "folder"
     }
 }
 
 private data class QueueArtworkTarget(
     val queueType: String,
-    val queueId: Long,
+    val queueKey: String,
 )

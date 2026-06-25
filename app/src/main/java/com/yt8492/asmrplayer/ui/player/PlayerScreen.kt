@@ -1060,7 +1060,7 @@ private fun PlaybackQueue.artworkLabel(): String? {
     return when (this) {
         is PlaybackQueue.Album -> stringResource(id = R.string.player_artwork_scope_album)
         is PlaybackQueue.Playlist -> stringResource(id = R.string.player_artwork_scope_playlist)
-        is PlaybackQueue.Folder -> null
+        is PlaybackQueue.Folder -> stringResource(id = R.string.player_artwork_scope_folder)
     }
 }
 

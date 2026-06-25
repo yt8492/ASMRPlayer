@@ -38,6 +38,7 @@
     <string name="player_track_artwork_clear">トラック画像を解除</string>
     <string name="player_artwork_scope_album">アルバム</string>
     <string name="player_artwork_scope_playlist">プレイリスト</string>
+    <string name="player_artwork_scope_folder">フォルダ</string>
     <string name="player_queue_artwork_select">%1$s画像を選択</string>
     <string name="player_queue_artwork_change">%1$s画像を変更</string>
     <string name="player_queue_artwork_clear">%1$s画像を解除</string>

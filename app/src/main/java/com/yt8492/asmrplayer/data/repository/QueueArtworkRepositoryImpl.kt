@@ -12,37 +12,37 @@ import kotlinx.coroutines.withContext
 class QueueArtworkRepositoryImpl(
     private val queueArtworkDao: QueueArtworkDao,
 ) : QueueArtworkRepository {
-    override fun observeQueueArtwork(queueType: String, queueId: Long): Flow<QueueArtwork?> {
-        return queueArtworkDao.observeQueueArtwork(queueType, queueId).map { it?.toModel() }
+    override fun observeQueueArtwork(queueType: String, queueKey: String): Flow<QueueArtwork?> {
+        return queueArtworkDao.observeQueueArtwork(queueType, queueKey).map { it?.toModel() }
     }
 
-    override suspend fun getQueueArtwork(queueType: String, queueId: Long): QueueArtwork? = withContext(Dispatchers.IO) {
-        queueArtworkDao.getQueueArtwork(queueType, queueId)?.toModel()
+    override suspend fun getQueueArtwork(queueType: String, queueKey: String): QueueArtwork? = withContext(Dispatchers.IO) {
+        queueArtworkDao.getQueueArtwork(queueType, queueKey)?.toModel()
     }
 
     override suspend fun isImageUriUsed(imageUri: Uri): Boolean = withContext(Dispatchers.IO) {
         queueArtworkDao.countByImageUri(imageUri.toString()) > 0
     }
 
-    override suspend fun saveQueueArtwork(queueType: String, queueId: Long, imageUri: Uri) = withContext(Dispatchers.IO) {
+    override suspend fun saveQueueArtwork(queueType: String, queueKey: String, imageUri: Uri) = withContext(Dispatchers.IO) {
         queueArtworkDao.upsertQueueArtwork(
             QueueArtworkEntity(
                 queueType = queueType,
-                queueId = queueId,
+                queueKey = queueKey,
                 imageUri = imageUri.toString(),
                 updatedAt = System.currentTimeMillis(),
             ),
         )
     }
 
-    override suspend fun deleteQueueArtwork(queueType: String, queueId: Long) = withContext(Dispatchers.IO) {
-        queueArtworkDao.deleteQueueArtwork(queueType, queueId)
+    override suspend fun deleteQueueArtwork(queueType: String, queueKey: String) = withContext(Dispatchers.IO) {
+        queueArtworkDao.deleteQueueArtwork(queueType, queueKey)
     }
 
     private fun QueueArtworkEntity.toModel(): QueueArtwork {
         return QueueArtwork(
             queueType = queueType,
-            queueId = queueId,
+            queueKey = queueKey,
             imageUri = Uri.parse(imageUri),
         )
     }

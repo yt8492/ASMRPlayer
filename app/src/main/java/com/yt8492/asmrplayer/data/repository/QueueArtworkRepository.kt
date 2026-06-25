@@ -5,9 +5,9 @@ import com.yt8492.asmrplayer.data.model.QueueArtwork
 import kotlinx.coroutines.flow.Flow
 
 interface QueueArtworkRepository {
-    fun observeQueueArtwork(queueType: String, queueId: Long): Flow<QueueArtwork?>
-    suspend fun getQueueArtwork(queueType: String, queueId: Long): QueueArtwork?
+    fun observeQueueArtwork(queueType: String, queueKey: String): Flow<QueueArtwork?>
+    suspend fun getQueueArtwork(queueType: String, queueKey: String): QueueArtwork?
     suspend fun isImageUriUsed(imageUri: Uri): Boolean
-    suspend fun saveQueueArtwork(queueType: String, queueId: Long, imageUri: Uri)
-    suspend fun deleteQueueArtwork(queueType: String, queueId: Long)
+    suspend fun saveQueueArtwork(queueType: String, queueKey: String, imageUri: Uri)
+    suspend fun deleteQueueArtwork(queueType: String, queueKey: String)
 }
