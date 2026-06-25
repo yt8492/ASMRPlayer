@@ -1,12 +1,16 @@
 package com.yt8492.asmrplayer.ui.player
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.yt8492.asmrplayer.data.local.AppDatabase
 import com.yt8492.asmrplayer.data.repository.PlaylistRepository
 import com.yt8492.asmrplayer.data.repository.PlaylistRepositoryImpl
+import com.yt8492.asmrplayer.data.repository.TrackArtworkRepository
+import com.yt8492.asmrplayer.data.repository.TrackArtworkRepositoryImpl
 import com.yt8492.asmrplayer.data.repository.TrackRepository
 import com.yt8492.asmrplayer.data.repository.TrackRepositoryImpl
 import com.yt8492.asmrplayer.data.repository.TrackLoopRepository
@@ -20,15 +24,18 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class PlayerViewModel(
+    private val context: Context,
     private val queue: PlaybackQueue,
     private val startTrackId: Long,
     private val trackRepository: TrackRepository,
     private val playlistRepository: PlaylistRepository,
     private val trackLoopRepository: TrackLoopRepository,
+    private val trackArtworkRepository: TrackArtworkRepository,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
     private var currentTrackLoopJob: Job? = null
+    private var currentTrackArtworkJob: Job? = null
     private var currentTrackId: Long? = null
 
     init {
@@ -71,13 +78,20 @@ class PlayerViewModel(
         if (currentTrackId == trackId) return
         currentTrackId = trackId
         currentTrackLoopJob?.cancel()
+        currentTrackArtworkJob?.cancel()
+        _uiState.update { it.copy(currentTrackArtworkUri = null) }
         if (trackId == null) {
-            _uiState.update { it.copy(currentTrackLoop = null) }
+            _uiState.update { it.copy(currentTrackLoop = null, currentTrackArtworkUri = null) }
             return
         }
         currentTrackLoopJob = viewModelScope.launch {
             trackLoopRepository.observeTrackLoop(trackId).collectLatest { trackLoop ->
                 _uiState.update { it.copy(currentTrackLoop = trackLoop) }
+            }
+        }
+        currentTrackArtworkJob = viewModelScope.launch {
+            trackArtworkRepository.observeTrackArtwork(trackId).collectLatest { trackArtwork ->
+                _uiState.update { it.copy(currentTrackArtworkUri = trackArtwork?.imageUri) }
             }
         }
     }
@@ -95,6 +109,33 @@ class PlayerViewModel(
         }
     }
 
+    fun saveTrackArtwork(trackId: Long, imageUri: Uri) {
+        viewModelScope.launch {
+            val previousUri = trackArtworkRepository.getTrackArtwork(trackId)?.imageUri
+            trackArtworkRepository.saveTrackArtwork(trackId, imageUri)
+            if (previousUri != null && previousUri != imageUri) {
+                releaseArtworkPermission(previousUri)
+            }
+        }
+    }
+
+    fun deleteTrackArtwork(trackId: Long) {
+        viewModelScope.launch {
+            val previousUri = trackArtworkRepository.getTrackArtwork(trackId)?.imageUri
+            trackArtworkRepository.deleteTrackArtwork(trackId)
+            previousUri?.let(::releaseArtworkPermission)
+        }
+    }
+
+    private fun releaseArtworkPermission(imageUri: Uri) {
+        runCatching {
+            context.contentResolver.releasePersistableUriPermission(
+                imageUri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        }
+    }
+
     companion object {
         fun provideFactory(context: Context, queue: PlaybackQueue, startTrackId: Long): ViewModelProvider.Factory {
             val applicationContext = context.applicationContext
@@ -108,13 +149,18 @@ class PlayerViewModel(
                     val trackLoopRepository: TrackLoopRepository = TrackLoopRepositoryImpl(
                         database.trackLoopDao(),
                     )
+                    val trackArtworkRepository: TrackArtworkRepository = TrackArtworkRepositoryImpl(
+                        database.trackArtworkDao(),
+                    )
                     @Suppress("UNCHECKED_CAST")
                     return PlayerViewModel(
+                        context = applicationContext,
                         queue = queue,
                         startTrackId = startTrackId,
                         trackRepository = trackRepository,
                         playlistRepository = playlistRepository,
                         trackLoopRepository = trackLoopRepository,
+                        trackArtworkRepository = trackArtworkRepository,
                     ) as T
                 }
             }

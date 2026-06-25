@@ -29,6 +29,9 @@
     <string name="player_loop_start">A-Bループ開始</string>
     <string name="player_loop_stop">A-Bループ停止</string>
     <string name="player_loop_clear">A-Bループ解除</string>
+    <string name="player_artwork_select">画像を選択</string>
+    <string name="player_artwork_change">画像を変更</string>
+    <string name="player_artwork_clear">画像を解除</string>
     <string name="notification_channel_name">音楽の再生</string>
     <string name="playlist_list_title">プレイリスト</string>
     <string name="playlist_detail_title">プレイリスト</string>

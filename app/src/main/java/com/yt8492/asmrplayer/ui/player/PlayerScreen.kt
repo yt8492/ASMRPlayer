@@ -2,12 +2,15 @@ package com.yt8492.asmrplayer.ui.player
 
 import android.content.ComponentName
 import android.content.ContentUris
+import android.content.Intent
 import android.graphics.Paint
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Size
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -30,6 +33,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
@@ -214,6 +219,8 @@ fun PlayerRoute(
             onCurrentTrackChanged = viewModel::onCurrentTrackChanged,
             onSaveTrackLoop = viewModel::saveTrackLoop,
             onDeleteTrackLoop = viewModel::deleteTrackLoop,
+            onSaveTrackArtwork = viewModel::saveTrackArtwork,
+            onDeleteTrackArtwork = viewModel::deleteTrackArtwork,
             modifier = modifier,
         )
     }
@@ -230,8 +237,11 @@ fun PlayerScreen(
     onCurrentTrackChanged: (Long?) -> Unit,
     onSaveTrackLoop: (trackId: Long, startMs: Long, endMs: Long) -> Unit,
     onDeleteTrackLoop: (trackId: Long) -> Unit,
+    onSaveTrackArtwork: (trackId: Long, imageUri: Uri) -> Unit,
+    onDeleteTrackArtwork: (trackId: Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     var isPlaying by remember { mutableStateOf(player.isPlaying) }
     var currentIndex by remember { mutableIntStateOf(player.currentMediaItemIndex) }
     var positionMs by remember { mutableLongStateOf(0L) }
@@ -283,6 +293,21 @@ fun PlayerScreen(
 
     val currentTrack = uiState.tracks.getOrNull(currentIndex)
     val currentTrackId = currentTrack?.id
+    var artworkTargetTrackId by remember { mutableStateOf<Long?>(null) }
+    val artworkPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { imageUri ->
+        val trackId = artworkTargetTrackId ?: return@rememberLauncherForActivityResult
+        if (imageUri == null) return@rememberLauncherForActivityResult
+        val permissionTaken = runCatching {
+            context.contentResolver.takePersistableUriPermission(
+                imageUri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        }.isSuccess
+        if (!permissionTaken) return@rememberLauncherForActivityResult
+        onSaveTrackArtwork(trackId, imageUri)
+    }
 
     LaunchedEffect(currentTrackId) {
         onCurrentTrackChanged(currentTrackId)
@@ -317,6 +342,35 @@ fun PlayerScreen(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(id = R.string.track_list_back),
                         )
+                    }
+                },
+                actions = {
+                    currentTrackId?.let { trackId ->
+                        IconButton(
+                            onClick = {
+                                artworkTargetTrackId = trackId
+                                artworkPicker.launch(arrayOf("image/*"))
+                            },
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Image,
+                                contentDescription = stringResource(
+                                    id = if (uiState.currentTrackArtworkUri == null) {
+                                        R.string.player_artwork_select
+                                    } else {
+                                        R.string.player_artwork_change
+                                    },
+                                ),
+                            )
+                        }
+                        if (uiState.currentTrackArtworkUri != null) {
+                            IconButton(onClick = { onDeleteTrackArtwork(trackId) }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Delete,
+                                    contentDescription = stringResource(id = R.string.player_artwork_clear),
+                                )
+                            }
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -392,9 +446,10 @@ fun PlayerScreen(
                 verticalArrangement = Arrangement.spacedBy(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                val customArtworkUri = uiState.currentTrackArtworkUri
                 AlbumArt(
-                    albumId = currentTrack?.albumId,
-                    albumArtUri = currentTrack?.albumArtUri ?: fallbackAlbumArtUri,
+                    albumId = if (customArtworkUri == null) currentTrack?.albumId else null,
+                    albumArtUri = customArtworkUri ?: currentTrack?.albumArtUri ?: fallbackAlbumArtUri,
                     contentDescription = currentTrack?.albumTitle ?: queueTitle,
                     modifier = Modifier.fillMaxWidth(),
                 )
