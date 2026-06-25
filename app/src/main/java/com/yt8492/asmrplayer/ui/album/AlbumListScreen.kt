@@ -247,14 +247,6 @@ private fun AlbumList(
             .background(MaterialTheme.colorScheme.background),
         verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
-        item {
-            Text(
-                text = "寝る前に聴く作品を選ぶ",
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
         items(
             items = albums,
             key = { it.id },

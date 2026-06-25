@@ -310,7 +310,7 @@ fun PlayerScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text(text = "再生中") },
+                title = { Text(text = queueTitle) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -592,11 +592,6 @@ fun PlayerScreen(
                         )
                     }
                 }
-
-                NextTrackPanel(
-                    trackTitle = uiState.tracks.getOrNull(currentIndex + 1)?.title,
-                    trackArtist = uiState.tracks.getOrNull(currentIndex + 1)?.artist,
-                )
             }
 
             seekFeedback?.let { feedback ->
@@ -757,45 +752,6 @@ private fun TrackLoopStatusText(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
     )
-}
-
-@Composable
-private fun NextTrackPanel(
-    trackTitle: String?,
-    trackArtist: String?,
-    modifier: Modifier = Modifier,
-) {
-    if (trackTitle == null) return
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.large)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f))
-            .padding(horizontal = 18.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Text(
-            text = "次のトラック",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Text(
-            text = trackTitle,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        if (!trackArtist.isNullOrBlank()) {
-            Text(
-                text = trackArtist,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
