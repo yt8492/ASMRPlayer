@@ -42,6 +42,8 @@ import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -214,6 +216,7 @@ fun PlayerRoute(
             player = controller!!,
             uiState = uiState,
             queueTitle = queue.title,
+            queueArtworkLabel = queue.artworkLabel(),
             fallbackAlbumArtUri = queue.albumArtUri,
             onBack = onBack,
             onCurrentTrackChanged = viewModel::onCurrentTrackChanged,
@@ -221,6 +224,8 @@ fun PlayerRoute(
             onDeleteTrackLoop = viewModel::deleteTrackLoop,
             onSaveTrackArtwork = viewModel::saveTrackArtwork,
             onDeleteTrackArtwork = viewModel::deleteTrackArtwork,
+            onSaveQueueArtwork = viewModel::saveQueueArtwork,
+            onDeleteQueueArtwork = viewModel::deleteQueueArtwork,
             modifier = modifier,
         )
     }
@@ -232,6 +237,7 @@ fun PlayerScreen(
     player: Player,
     uiState: PlayerUiState,
     queueTitle: String,
+    queueArtworkLabel: String?,
     fallbackAlbumArtUri: Uri?,
     onBack: () -> Unit,
     onCurrentTrackChanged: (Long?) -> Unit,
@@ -239,6 +245,8 @@ fun PlayerScreen(
     onDeleteTrackLoop: (trackId: Long) -> Unit,
     onSaveTrackArtwork: (trackId: Long, imageUri: Uri) -> Unit,
     onDeleteTrackArtwork: (trackId: Long) -> Unit,
+    onSaveQueueArtwork: (imageUri: Uri) -> Unit,
+    onDeleteQueueArtwork: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -293,11 +301,12 @@ fun PlayerScreen(
 
     val currentTrack = uiState.tracks.getOrNull(currentIndex)
     val currentTrackId = currentTrack?.id
-    var artworkTargetTrackId by remember { mutableStateOf<Long?>(null) }
+    var artworkPickerTarget by remember { mutableStateOf<ArtworkPickerTarget?>(null) }
+    var artworkMenuExpanded by remember { mutableStateOf(false) }
     val artworkPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
     ) { imageUri ->
-        val trackId = artworkTargetTrackId ?: return@rememberLauncherForActivityResult
+        val target = artworkPickerTarget ?: return@rememberLauncherForActivityResult
         if (imageUri == null) return@rememberLauncherForActivityResult
         val permissionTaken = runCatching {
             context.contentResolver.takePersistableUriPermission(
@@ -306,7 +315,10 @@ fun PlayerScreen(
             )
         }.isSuccess
         if (!permissionTaken) return@rememberLauncherForActivityResult
-        onSaveTrackArtwork(trackId, imageUri)
+        when (target) {
+            ArtworkPickerTarget.Queue -> onSaveQueueArtwork(imageUri)
+            is ArtworkPickerTarget.Track -> onSaveTrackArtwork(target.trackId, imageUri)
+        }
     }
 
     LaunchedEffect(currentTrackId) {
@@ -347,27 +359,103 @@ fun PlayerScreen(
                 actions = {
                     currentTrackId?.let { trackId ->
                         IconButton(
-                            onClick = {
-                                artworkTargetTrackId = trackId
-                                artworkPicker.launch(arrayOf("image/*"))
-                            },
+                            onClick = { artworkMenuExpanded = true },
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Image,
-                                contentDescription = stringResource(
-                                    id = if (uiState.currentTrackArtworkUri == null) {
-                                        R.string.player_artwork_select
-                                    } else {
-                                        R.string.player_artwork_change
-                                    },
-                                ),
+                                contentDescription = stringResource(id = R.string.player_artwork_menu),
                             )
                         }
-                        if (uiState.currentTrackArtworkUri != null) {
-                            IconButton(onClick = { onDeleteTrackArtwork(trackId) }) {
-                                Icon(
-                                    imageVector = Icons.Filled.Delete,
-                                    contentDescription = stringResource(id = R.string.player_artwork_clear),
+                        DropdownMenu(
+                            expanded = artworkMenuExpanded,
+                            onDismissRequest = { artworkMenuExpanded = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = stringResource(
+                                            id = if (uiState.currentTrackArtworkUri == null) {
+                                                R.string.player_track_artwork_select
+                                            } else {
+                                                R.string.player_track_artwork_change
+                                            },
+                                        ),
+                                    )
+                                },
+                                onClick = {
+                                    artworkMenuExpanded = false
+                                    artworkPickerTarget = ArtworkPickerTarget.Track(trackId)
+                                    artworkPicker.launch(arrayOf("image/*"))
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Filled.Image,
+                                        contentDescription = null,
+                                    )
+                                },
+                            )
+                            queueArtworkLabel?.let { label ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = stringResource(
+                                                id = if (uiState.queueArtworkUri == null) {
+                                                    R.string.player_queue_artwork_select
+                                                } else {
+                                                    R.string.player_queue_artwork_change
+                                                },
+                                                label,
+                                            ),
+                                        )
+                                    },
+                                    onClick = {
+                                        artworkMenuExpanded = false
+                                        artworkPickerTarget = ArtworkPickerTarget.Queue
+                                        artworkPicker.launch(arrayOf("image/*"))
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Filled.Image,
+                                            contentDescription = null,
+                                        )
+                                    },
+                                )
+                            }
+                            if (uiState.currentTrackArtworkUri != null) {
+                                DropdownMenuItem(
+                                    text = { Text(text = stringResource(id = R.string.player_track_artwork_clear)) },
+                                    onClick = {
+                                        artworkMenuExpanded = false
+                                        onDeleteTrackArtwork(trackId)
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Filled.Delete,
+                                            contentDescription = null,
+                                        )
+                                    },
+                                )
+                            }
+                            if (queueArtworkLabel != null && uiState.queueArtworkUri != null) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = stringResource(
+                                                id = R.string.player_queue_artwork_clear,
+                                                queueArtworkLabel,
+                                            ),
+                                        )
+                                    },
+                                    onClick = {
+                                        artworkMenuExpanded = false
+                                        onDeleteQueueArtwork()
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Filled.Delete,
+                                            contentDescription = null,
+                                        )
+                                    },
                                 )
                             }
                         }
@@ -446,7 +534,7 @@ fun PlayerScreen(
                 verticalArrangement = Arrangement.spacedBy(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                val customArtworkUri = uiState.currentTrackArtworkUri
+                val customArtworkUri = uiState.currentTrackArtworkUri ?: uiState.queueArtworkUri
                 AlbumArt(
                     albumId = if (customArtworkUri == null) currentTrack?.albumId else null,
                     albumArtUri = customArtworkUri ?: currentTrack?.albumArtUri ?: fallbackAlbumArtUri,
@@ -966,3 +1054,17 @@ private val PlaybackQueue.albumArtUri: Uri?
         is PlaybackQueue.Folder -> null
         is PlaybackQueue.Playlist -> null
     }
+
+@Composable
+private fun PlaybackQueue.artworkLabel(): String? {
+    return when (this) {
+        is PlaybackQueue.Album -> stringResource(id = R.string.player_artwork_scope_album)
+        is PlaybackQueue.Playlist -> stringResource(id = R.string.player_artwork_scope_playlist)
+        is PlaybackQueue.Folder -> null
+    }
+}
+
+private sealed interface ArtworkPickerTarget {
+    data class Track(val trackId: Long) : ArtworkPickerTarget
+    data object Queue : ArtworkPickerTarget
+}

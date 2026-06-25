@@ -20,6 +20,10 @@ class TrackArtworkRepositoryImpl(
         trackArtworkDao.getTrackArtwork(trackId)?.toModel()
     }
 
+    override suspend fun isImageUriUsed(imageUri: Uri): Boolean = withContext(Dispatchers.IO) {
+        trackArtworkDao.countByImageUri(imageUri.toString()) > 0
+    }
+
     override suspend fun saveTrackArtwork(trackId: Long, imageUri: Uri) = withContext(Dispatchers.IO) {
         trackArtworkDao.upsertTrackArtwork(
             TrackArtworkEntity(

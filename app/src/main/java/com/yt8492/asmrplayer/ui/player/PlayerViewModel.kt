@@ -9,6 +9,8 @@ import androidx.lifecycle.viewModelScope
 import com.yt8492.asmrplayer.data.local.AppDatabase
 import com.yt8492.asmrplayer.data.repository.PlaylistRepository
 import com.yt8492.asmrplayer.data.repository.PlaylistRepositoryImpl
+import com.yt8492.asmrplayer.data.repository.QueueArtworkRepository
+import com.yt8492.asmrplayer.data.repository.QueueArtworkRepositoryImpl
 import com.yt8492.asmrplayer.data.repository.TrackArtworkRepository
 import com.yt8492.asmrplayer.data.repository.TrackArtworkRepositoryImpl
 import com.yt8492.asmrplayer.data.repository.TrackRepository
@@ -31,15 +33,18 @@ class PlayerViewModel(
     private val playlistRepository: PlaylistRepository,
     private val trackLoopRepository: TrackLoopRepository,
     private val trackArtworkRepository: TrackArtworkRepository,
+    private val queueArtworkRepository: QueueArtworkRepository,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
     private var currentTrackLoopJob: Job? = null
     private var currentTrackArtworkJob: Job? = null
+    private var queueArtworkJob: Job? = null
     private var currentTrackId: Long? = null
 
     init {
         loadTracks()
+        observeQueueArtwork()
     }
 
     private fun loadTracks() {
@@ -114,7 +119,7 @@ class PlayerViewModel(
             val previousUri = trackArtworkRepository.getTrackArtwork(trackId)?.imageUri
             trackArtworkRepository.saveTrackArtwork(trackId, imageUri)
             if (previousUri != null && previousUri != imageUri) {
-                releaseArtworkPermission(previousUri)
+                releaseArtworkPermissionIfUnused(previousUri)
             }
         }
     }
@@ -123,16 +128,61 @@ class PlayerViewModel(
         viewModelScope.launch {
             val previousUri = trackArtworkRepository.getTrackArtwork(trackId)?.imageUri
             trackArtworkRepository.deleteTrackArtwork(trackId)
-            previousUri?.let(::releaseArtworkPermission)
+            previousUri?.let { releaseArtworkPermissionIfUnused(it) }
         }
     }
 
-    private fun releaseArtworkPermission(imageUri: Uri) {
+    fun saveQueueArtwork(imageUri: Uri) {
+        val target = queue.artworkTarget() ?: return
+        viewModelScope.launch {
+            val previousUri = queueArtworkRepository.getQueueArtwork(target.queueType, target.queueId)?.imageUri
+            queueArtworkRepository.saveQueueArtwork(target.queueType, target.queueId, imageUri)
+            if (previousUri != null && previousUri != imageUri) {
+                releaseArtworkPermissionIfUnused(previousUri)
+            }
+        }
+    }
+
+    fun deleteQueueArtwork() {
+        val target = queue.artworkTarget() ?: return
+        viewModelScope.launch {
+            val previousUri = queueArtworkRepository.getQueueArtwork(target.queueType, target.queueId)?.imageUri
+            queueArtworkRepository.deleteQueueArtwork(target.queueType, target.queueId)
+            previousUri?.let { releaseArtworkPermissionIfUnused(it) }
+        }
+    }
+
+    private fun observeQueueArtwork() {
+        val target = queue.artworkTarget()
+        if (target == null) {
+            _uiState.update { it.copy(queueArtworkUri = null) }
+            return
+        }
+        queueArtworkJob?.cancel()
+        queueArtworkJob = viewModelScope.launch {
+            queueArtworkRepository.observeQueueArtwork(target.queueType, target.queueId).collectLatest { queueArtwork ->
+                _uiState.update { it.copy(queueArtworkUri = queueArtwork?.imageUri) }
+            }
+        }
+    }
+
+    private suspend fun releaseArtworkPermissionIfUnused(imageUri: Uri) {
+        val isUsed = trackArtworkRepository.isImageUriUsed(imageUri) ||
+            queueArtworkRepository.isImageUriUsed(imageUri)
+        if (isUsed) return
         runCatching {
             context.contentResolver.releasePersistableUriPermission(
                 imageUri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION,
             )
+        }
+    }
+
+    private fun PlaybackQueue.artworkTarget(): QueueArtworkTarget? {
+        return when (this) {
+            is PlaybackQueue.Album -> QueueArtworkTarget(QUEUE_TYPE_ALBUM, albumId)
+            is PlaybackQueue.Playlist -> QueueArtworkTarget(QUEUE_TYPE_PLAYLIST, playlistId)
+            is PlaybackQueue.Folder -> null
         }
     }
 
@@ -152,6 +202,9 @@ class PlayerViewModel(
                     val trackArtworkRepository: TrackArtworkRepository = TrackArtworkRepositoryImpl(
                         database.trackArtworkDao(),
                     )
+                    val queueArtworkRepository: QueueArtworkRepository = QueueArtworkRepositoryImpl(
+                        database.queueArtworkDao(),
+                    )
                     @Suppress("UNCHECKED_CAST")
                     return PlayerViewModel(
                         context = applicationContext,
@@ -161,9 +214,18 @@ class PlayerViewModel(
                         playlistRepository = playlistRepository,
                         trackLoopRepository = trackLoopRepository,
                         trackArtworkRepository = trackArtworkRepository,
+                        queueArtworkRepository = queueArtworkRepository,
                     ) as T
                 }
             }
         }
+
+        private const val QUEUE_TYPE_ALBUM = "album"
+        private const val QUEUE_TYPE_PLAYLIST = "playlist"
     }
 }
+
+private data class QueueArtworkTarget(
+    val queueType: String,
+    val queueId: Long,
+)

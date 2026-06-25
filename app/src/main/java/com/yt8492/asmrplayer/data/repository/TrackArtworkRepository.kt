@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.Flow
 interface TrackArtworkRepository {
     fun observeTrackArtwork(trackId: Long): Flow<TrackArtwork?>
     suspend fun getTrackArtwork(trackId: Long): TrackArtwork?
+    suspend fun isImageUriUsed(imageUri: Uri): Boolean
     suspend fun saveTrackArtwork(trackId: Long, imageUri: Uri)
     suspend fun deleteTrackArtwork(trackId: Long)
 }

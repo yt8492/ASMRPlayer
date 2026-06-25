@@ -10,5 +10,6 @@ data class PlayerUiState(
     val startIndex: Int = 0,
     val currentTrackLoop: TrackLoop? = null,
     val currentTrackArtworkUri: Uri? = null,
+    val queueArtworkUri: Uri? = null,
     val errorMessage: String? = null,
 )
