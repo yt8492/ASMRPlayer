@@ -52,6 +52,7 @@ class FileExplorerViewModel(
                         currentPath = content.currentPath,
                         directories = content.directories,
                         tracks = content.tracks,
+                        images = content.images,
                     )
                 }
             }.onFailure {

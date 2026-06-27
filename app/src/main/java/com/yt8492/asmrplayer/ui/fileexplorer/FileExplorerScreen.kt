@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -49,6 +51,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -59,8 +62,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yt8492.asmrplayer.R
 import com.yt8492.asmrplayer.data.model.AudioDirectory
+import com.yt8492.asmrplayer.data.model.ImageFile
 import com.yt8492.asmrplayer.data.model.Playlist
 import com.yt8492.asmrplayer.data.model.Track
+import coil.compose.AsyncImage
 import java.util.concurrent.TimeUnit
 
 @Composable
@@ -75,23 +80,31 @@ fun FileExplorerRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val rootTitle = stringResource(id = R.string.file_explorer_title)
-    val permission = remember {
+    val permissions = remember {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            Manifest.permission.READ_MEDIA_AUDIO
+            buildList {
+                add(Manifest.permission.READ_MEDIA_AUDIO)
+                add(Manifest.permission.READ_MEDIA_IMAGES)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    add(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
+                }
+            }.toTypedArray()
         } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
+            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
     }
     var hasPermission by remember {
         mutableStateOf(
-            ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED,
+            permissions.any { permission ->
+                ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+            },
         )
     }
     val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-    ) { isGranted ->
-        hasPermission = isGranted
-        if (isGranted) {
+        contract = ActivityResultContracts.RequestMultiplePermissions(),
+    ) { result ->
+        hasPermission = result.values.any { it }
+        if (hasPermission) {
             viewModel.loadContent()
         }
     }
@@ -109,7 +122,7 @@ fun FileExplorerRoute(
     FileExplorerScreen(
         uiState = uiState,
         hasPermission = hasPermission,
-        onRequestPermission = { permissionLauncher.launch(permission) },
+        onRequestPermission = { permissionLauncher.launch(permissions) },
         onRetry = viewModel::loadContent,
         onDirectoryClick = viewModel::openDirectory,
         onBack = viewModel::openParentDirectory,
@@ -149,6 +162,7 @@ fun FileExplorerScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedTrack by remember { mutableStateOf<Track?>(null) }
     var trackForNewPlaylist by remember { mutableStateOf<Track?>(null) }
+    var previewImage by remember { mutableStateOf<ImageFile?>(null) }
     val isRoot = uiState.currentPath.isEmpty()
     val title = uiState.currentPath.trim('/').substringAfterLast(
         delimiter = '/',
@@ -206,7 +220,7 @@ fun FileExplorerScreen(
                     CircularProgressIndicator()
                 }
 
-                uiState.directories.isEmpty() && uiState.tracks.isEmpty() -> EmptyFileExplorer(
+                uiState.directories.isEmpty() && uiState.tracks.isEmpty() && uiState.images.isEmpty() -> EmptyFileExplorer(
                     onRetry = onRetry,
                     modifier = Modifier.align(Alignment.Center),
                 )
@@ -214,8 +228,10 @@ fun FileExplorerScreen(
                 else -> FileExplorerList(
                     directories = uiState.directories,
                     tracks = uiState.tracks,
+                    images = uiState.images,
                     onDirectoryClick = onDirectoryClick,
                     onTrackClick = onTrackClick,
+                    onImageClick = { image -> previewImage = image },
                     onAddToPlaylistClick = { track -> selectedTrack = track },
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -247,6 +263,13 @@ fun FileExplorerScreen(
             },
         )
     }
+
+    previewImage?.let { image ->
+        ImagePreviewDialog(
+            image = image,
+            onDismiss = { previewImage = null },
+        )
+    }
 }
 
 @Composable
@@ -262,7 +285,7 @@ private fun PermissionRequest(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = stringResource(id = R.string.album_permission_title),
+            text = stringResource(id = R.string.file_explorer_permission_title),
             style = MaterialTheme.typography.titleLarge,
         )
         Text(
@@ -301,8 +324,10 @@ private fun EmptyFileExplorer(
 private fun FileExplorerList(
     directories: List<AudioDirectory>,
     tracks: List<Track>,
+    images: List<ImageFile>,
     onDirectoryClick: (String) -> Unit,
     onTrackClick: (Int) -> Unit,
+    onImageClick: (ImageFile) -> Unit,
     onAddToPlaylistClick: (Track) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -327,7 +352,7 @@ private fun FileExplorerList(
                     )
                 },
                 supportingContent = {
-                    Text(text = stringResource(id = R.string.album_track_count, directory.trackCount))
+                    Text(text = stringResource(id = R.string.file_explorer_item_count, directory.trackCount))
                 },
             )
             HorizontalDivider()
@@ -378,7 +403,68 @@ private fun FileExplorerList(
             )
             HorizontalDivider()
         }
+        items(
+            items = images,
+            key = { image -> "image-${image.id}" },
+        ) { image ->
+            ListItem(
+                modifier = Modifier.clickable { onImageClick(image) },
+                leadingContent = {
+                    Icon(
+                        imageVector = Icons.Filled.Image,
+                        contentDescription = null,
+                    )
+                },
+                headlineContent = {
+                    Text(
+                        text = image.title,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
+                supportingContent = {
+                    Text(
+                        text = image.mimeType.ifEmpty { stringResource(id = R.string.file_explorer_image_preview) },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
+            )
+            HorizontalDivider()
+        }
     }
+}
+
+@Composable
+private fun ImagePreviewDialog(
+    image: ImageFile,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = image.title,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+        text = {
+            AsyncImage(
+                model = image.uri,
+                contentDescription = stringResource(id = R.string.file_explorer_image_preview),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 520.dp),
+                contentScale = ContentScale.Fit,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(id = R.string.file_explorer_image_close))
+            }
+        },
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -496,6 +582,14 @@ private fun FileExplorerScreenPreview() {
                     durationMs = 210_000,
                     trackNumber = 1,
                     uri = android.net.Uri.EMPTY,
+                ),
+            ),
+            images = listOf(
+                ImageFile(
+                    id = 1,
+                    title = "サンプル画像.jpg",
+                    uri = android.net.Uri.EMPTY,
+                    mimeType = "image/jpeg",
                 ),
             ),
         ),

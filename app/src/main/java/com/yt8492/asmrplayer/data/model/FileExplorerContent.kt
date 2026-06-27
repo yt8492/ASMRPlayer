@@ -4,4 +4,5 @@ data class FileExplorerContent(
     val currentPath: String,
     val directories: List<AudioDirectory>,
     val tracks: List<Track>,
+    val images: List<ImageFile>,
 )

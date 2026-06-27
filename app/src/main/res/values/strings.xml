@@ -56,9 +56,13 @@
     <string name="playlist_track_remove">プレイリストから削除</string>
     <string name="playlist_reorder">並べ替え</string>
     <string name="file_explorer_title">ファイル</string>
-    <string name="file_explorer_empty">音声ファイルが見つかりません</string>
-    <string name="file_explorer_permission_description">端末内の音声ファイルをフォルダごとに表示するために、音楽ファイルへのアクセス権限を許可してください。</string>
+    <string name="file_explorer_permission_title">メディアへのアクセス権限が必要です</string>
+    <string name="file_explorer_empty">音声ファイルまたは画像ファイルが見つかりません</string>
+    <string name="file_explorer_permission_description">端末内の音声ファイルと画像ファイルをフォルダごとに表示するために、メディアファイルへのアクセス権限を許可してください。</string>
     <string name="file_explorer_folder_content_description">フォルダ</string>
+    <string name="file_explorer_item_count">%1$d件</string>
+    <string name="file_explorer_image_preview">画像プレビュー</string>
+    <string name="file_explorer_image_close">画像プレビューを閉じる</string>
     <string name="common_create">作成</string>
     <string name="common_cancel">キャンセル</string>
 </resources>

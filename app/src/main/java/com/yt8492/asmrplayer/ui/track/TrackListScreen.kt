@@ -1,15 +1,12 @@
 package com.yt8492.asmrplayer.ui.track
 
 import android.Manifest
-import android.content.ContentUris
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
-import android.provider.MediaStore
-import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,15 +14,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
-import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -59,8 +52,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -68,10 +59,9 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yt8492.asmrplayer.R
+import com.yt8492.asmrplayer.data.model.Album
 import com.yt8492.asmrplayer.data.model.Playlist
 import com.yt8492.asmrplayer.data.model.Track
-import coil.compose.AsyncImage
-import com.yt8492.asmrplayer.data.model.Album
 import java.util.concurrent.TimeUnit
 
 @Composable
@@ -303,28 +293,20 @@ private fun TrackList(
         item {
             Column(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                AlbumArt(
-                    albumId = album.id,
-                    albumArtUri = album.albumArtUri,
-                    contentDescription = album.title,
-                    modifier = Modifier.fillMaxWidth(),
+                Text(
+                    text = album.title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = album.title,
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = stringResource(id = R.string.album_track_count, tracks.size),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                Text(
+                    text = stringResource(id = R.string.album_track_count, tracks.size),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
         itemsIndexed(
@@ -481,45 +463,6 @@ private fun CreatePlaylistDialog(
             }
         },
     )
-}
-
-@Composable
-private fun AlbumArt(
-    albumId: Long,
-    albumArtUri: Uri?,
-    contentDescription: String?,
-    modifier: Modifier = Modifier,
-) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        val context = LocalContext.current
-        val uri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, albumId)
-        val bitmap = runCatching {
-            context.contentResolver.loadThumbnail(uri, Size(1024, 1024), null)
-        }.getOrNull()
-        AsyncImage(
-            model = bitmap,
-            contentDescription = contentDescription,
-            modifier = modifier
-                .aspectRatio(1.45f)
-                .clip(MaterialTheme.shapes.medium),
-            contentScale = ContentScale.Crop,
-            placeholder = rememberVectorPainter(Icons.Filled.Album),
-            error = rememberVectorPainter(Icons.Filled.Album),
-            fallback = rememberVectorPainter(Icons.Filled.Album),
-        )
-    } else {
-        AsyncImage(
-            model = albumArtUri,
-            contentDescription = contentDescription,
-            modifier = modifier
-                .aspectRatio(1.45f)
-                .clip(MaterialTheme.shapes.medium),
-            contentScale = ContentScale.Crop,
-            placeholder = rememberVectorPainter(Icons.Filled.Album),
-            error = rememberVectorPainter(Icons.Filled.Album),
-            fallback = rememberVectorPainter(Icons.Filled.Album),
-        )
-    }
 }
 
 private fun formatDuration(durationMs: Long): String {
