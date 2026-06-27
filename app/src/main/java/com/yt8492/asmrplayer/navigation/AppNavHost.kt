@@ -1,6 +1,10 @@
 package com.yt8492.asmrplayer.navigation
 
 import android.net.Uri
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
@@ -14,6 +18,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -28,6 +35,8 @@ import com.yt8492.asmrplayer.ui.player.PlayerRoute
 import com.yt8492.asmrplayer.ui.playlist.PlaylistDetailRoute
 import com.yt8492.asmrplayer.ui.playlist.PlaylistListRoute
 import com.yt8492.asmrplayer.ui.track.TrackListRoute
+
+private const val ScreenFadeDurationMillis = 120
 
 @Composable
 fun AppNavHost(
@@ -65,19 +74,29 @@ fun AppNavHost(
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+    var fileExplorerResetRequestKey by remember { mutableStateOf(0) }
+    var playlistListResetRequestKey by remember { mutableStateOf(0) }
     val bottomBar: @Composable () -> Unit = {
         MainNavigationBar(
             currentRoute = currentRoute,
             onNavigateToPlaylists = {
-                navController.navigate("playlist_list") {
-                    launchSingleTop = true
-                    popUpTo("file_explorer")
+                if (currentRoute == "playlist_list") {
+                    playlistListResetRequestKey += 1
+                } else {
+                    navController.navigate("playlist_list") {
+                        launchSingleTop = true
+                        popUpTo("file_explorer")
+                    }
                 }
             },
             onNavigateToFiles = {
-                navController.navigate("file_explorer") {
-                    launchSingleTop = true
-                    popUpTo("file_explorer")
+                if (currentRoute == "file_explorer") {
+                    fileExplorerResetRequestKey += 1
+                } else {
+                    navController.navigate("file_explorer") {
+                        launchSingleTop = true
+                        popUpTo("file_explorer")
+                    }
                 }
             },
         )
@@ -86,12 +105,25 @@ fun AppNavHost(
     NavHost(
         navController = navController,
         startDestination = "file_explorer",
-        modifier = modifier,
+        modifier = modifier.background(MaterialTheme.colorScheme.scrim),
+        enterTransition = {
+            fadeIn(animationSpec = tween(durationMillis = ScreenFadeDurationMillis))
+        },
+        exitTransition = {
+            fadeOut(animationSpec = tween(durationMillis = ScreenFadeDurationMillis))
+        },
+        popEnterTransition = {
+            fadeIn(animationSpec = tween(durationMillis = ScreenFadeDurationMillis))
+        },
+        popExitTransition = {
+            fadeOut(animationSpec = tween(durationMillis = ScreenFadeDurationMillis))
+        },
     ) {
         composable("playlist_list") {
             PlaylistListRoute(
                 modifier = androidx.compose.ui.Modifier.fillMaxSize(),
                 bottomBar = bottomBar,
+                resetRequestKey = playlistListResetRequestKey,
                 onPlaylistClick = { playlist ->
                     val name = Uri.encode(playlist.name)
                     navController.navigate("playlist_detail/${playlist.id}?name=$name")
@@ -102,6 +134,7 @@ fun AppNavHost(
             FileExplorerRoute(
                 modifier = androidx.compose.ui.Modifier.fillMaxSize(),
                 bottomBar = bottomBar,
+                resetRequestKey = fileExplorerResetRequestKey,
                 onTrackClick = { directoryPath, directoryTitle, tracks, index ->
                     val trackId = tracks.getOrNull(index)?.id ?: return@FileExplorerRoute
                     val path = Uri.encode(directoryPath)
@@ -151,6 +184,7 @@ fun AppNavHost(
                     val name = Uri.encode(playlistName)
                     navController.navigate("player/playlist/$playlistId/$trackId?name=$name")
                 },
+                bottomBar = bottomBar,
                 modifier = androidx.compose.ui.Modifier.fillMaxSize(),
             )
         }
@@ -249,7 +283,8 @@ private fun MainNavigationBar(
             colors = itemColors,
         )
         NavigationBarItem(
-            selected = currentRoute == "playlist_list",
+            selected = currentRoute == "playlist_list" ||
+                currentRoute?.startsWith("playlist_detail/") == true,
             onClick = onNavigateToPlaylists,
             icon = { Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = null) },
             label = { Text("プレイリスト") },

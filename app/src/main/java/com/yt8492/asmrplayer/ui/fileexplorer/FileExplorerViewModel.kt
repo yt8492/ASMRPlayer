@@ -73,6 +73,10 @@ class FileExplorerViewModel(
         loadContent(directoryPath)
     }
 
+    fun resetToInitialState() {
+        loadContent("")
+    }
+
     fun openParentDirectory() {
         val currentPath = _uiState.value.currentPath.trim('/')
         if (currentPath.isEmpty()) return

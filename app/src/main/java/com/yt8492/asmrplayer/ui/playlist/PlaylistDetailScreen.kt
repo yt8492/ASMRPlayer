@@ -65,6 +65,7 @@ fun PlaylistDetailRoute(
     onBack: () -> Unit,
     onTrackClick: (tracks: List<Track>, index: Int) -> Unit,
     modifier: Modifier = Modifier,
+    bottomBar: @Composable () -> Unit = {},
     viewModel: PlaylistDetailViewModel = viewModel(
         factory = PlaylistDetailViewModel.provideFactory(LocalContext.current, playlistId),
     ),
@@ -107,6 +108,7 @@ fun PlaylistDetailRoute(
         onDragFinished = viewModel::saveCurrentOrder,
         onToggleEditMode = viewModel::toggleEditMode,
         onErrorShown = viewModel::consumeError,
+        bottomBar = bottomBar,
         modifier = modifier,
     )
 }
@@ -126,6 +128,7 @@ fun PlaylistDetailScreen(
     onToggleEditMode: () -> Unit,
     onErrorShown: () -> Unit,
     modifier: Modifier = Modifier,
+    bottomBar: @Composable () -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     var isRenameDialogVisible by remember { mutableStateOf(false) }
@@ -175,6 +178,7 @@ fun PlaylistDetailScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = bottomBar,
     ) { innerPadding ->
         Box(
             modifier = Modifier

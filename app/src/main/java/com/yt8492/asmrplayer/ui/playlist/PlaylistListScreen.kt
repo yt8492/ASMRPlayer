@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Add
@@ -52,11 +53,17 @@ fun PlaylistListRoute(
     onPlaylistClick: (Playlist) -> Unit,
     modifier: Modifier = Modifier,
     bottomBar: @Composable () -> Unit = {},
+    resetRequestKey: Int = 0,
     viewModel: PlaylistListViewModel = viewModel(
         factory = PlaylistListViewModel.provideFactory(LocalContext.current),
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    LaunchedEffect(resetRequestKey) {
+        if (resetRequestKey > 0) {
+            viewModel.resetToInitialState()
+        }
+    }
     PlaylistListScreen(
         uiState = uiState,
         onPlaylistClick = onPlaylistClick,
@@ -66,6 +73,7 @@ fun PlaylistListRoute(
         onToggleEditMode = viewModel::toggleEditMode,
         onErrorShown = viewModel::consumeError,
         bottomBar = bottomBar,
+        resetRequestKey = resetRequestKey,
         modifier = modifier,
     )
 }
@@ -82,6 +90,7 @@ fun PlaylistListScreen(
     onErrorShown: () -> Unit,
     modifier: Modifier = Modifier,
     bottomBar: @Composable () -> Unit = {},
+    resetRequestKey: Int = 0,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     var isCreateDialogVisible by remember { mutableStateOf(false) }
@@ -91,6 +100,18 @@ fun PlaylistListScreen(
         uiState.errorMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
             onErrorShown()
+        }
+    }
+    LaunchedEffect(resetRequestKey) {
+        if (resetRequestKey > 0) {
+            isCreateDialogVisible = false
+            playlistForRename = null
+        }
+    }
+    val listState = rememberLazyListState()
+    LaunchedEffect(resetRequestKey) {
+        if (resetRequestKey > 0) {
+            listState.scrollToItem(0)
         }
     }
 
@@ -133,7 +154,10 @@ fun PlaylistListScreen(
                     modifier = Modifier.align(Alignment.Center),
                 )
             } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    state = listState,
+                ) {
                     items(
                         items = uiState.playlists,
                         key = { it.id },

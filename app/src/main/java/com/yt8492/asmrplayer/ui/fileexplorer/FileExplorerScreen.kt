@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
@@ -80,6 +81,7 @@ fun FileExplorerRoute(
     onTrackClick: (directoryPath: String, directoryTitle: String, tracks: List<Track>, index: Int) -> Unit,
     modifier: Modifier = Modifier,
     bottomBar: @Composable () -> Unit = {},
+    resetRequestKey: Int = 0,
     viewModel: FileExplorerViewModel = viewModel(
         factory = FileExplorerViewModel.provideFactory(LocalContext.current),
     ),
@@ -102,6 +104,11 @@ fun FileExplorerRoute(
         mediaPermissionState = context.currentMediaPermissionState()
         if (mediaPermissionState.hasAnyPermission) {
             viewModel.loadContent()
+        }
+    }
+    LaunchedEffect(resetRequestKey) {
+        if (resetRequestKey > 0) {
+            viewModel.resetToInitialState()
         }
     }
 
@@ -131,6 +138,7 @@ fun FileExplorerRoute(
         onErrorShown = viewModel::consumeError,
         onPlaylistMessageShown = viewModel::consumePlaylistMessage,
         bottomBar = bottomBar,
+        resetRequestKey = resetRequestKey,
         modifier = modifier,
     )
 }
@@ -154,6 +162,7 @@ fun FileExplorerScreen(
     onPlaylistMessageShown: () -> Unit,
     modifier: Modifier = Modifier,
     bottomBar: @Composable () -> Unit = {},
+    resetRequestKey: Int = 0,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedTrack by remember { mutableStateOf<Track?>(null) }
@@ -177,6 +186,15 @@ fun FileExplorerScreen(
         uiState.playlistMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
             onPlaylistMessageShown()
+        }
+    }
+    LaunchedEffect(resetRequestKey) {
+        if (resetRequestKey > 0) {
+            selectedTrack = null
+            trackForNewPlaylist = null
+            selectedDirectory = null
+            directoryForNewPlaylist = null
+            previewImage = null
         }
     }
 
@@ -252,6 +270,7 @@ fun FileExplorerScreen(
                     onImageClick = { image -> previewImage = image },
                     onAddToPlaylistClick = { track -> selectedTrack = track },
                     onAddDirectoryToPlaylistClick = { directory -> selectedDirectory = directory },
+                    resetRequestKey = resetRequestKey,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -378,9 +397,19 @@ private fun FileExplorerList(
     onImageClick: (ImageFile) -> Unit,
     onAddToPlaylistClick: (Track) -> Unit,
     onAddDirectoryToPlaylistClick: (AudioDirectory) -> Unit,
+    resetRequestKey: Int = 0,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(modifier = modifier) {
+    val listState = rememberLazyListState()
+    LaunchedEffect(resetRequestKey) {
+        if (resetRequestKey > 0) {
+            listState.scrollToItem(0)
+        }
+    }
+    LazyColumn(
+        modifier = modifier,
+        state = listState,
+    ) {
         if (hasMissingPermission) {
             item(key = "missing-permission") {
                 MissingPermissionItem(onRequestPermission = onRequestPermission)

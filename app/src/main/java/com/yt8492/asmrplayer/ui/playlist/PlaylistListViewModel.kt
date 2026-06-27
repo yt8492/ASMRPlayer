@@ -71,6 +71,15 @@ class PlaylistListViewModel(
         _uiState.update { it.copy(isEditMode = !it.isEditMode) }
     }
 
+    fun resetToInitialState() {
+        _uiState.update {
+            it.copy(
+                isEditMode = false,
+                errorMessage = null,
+            )
+        }
+    }
+
     fun consumeError() {
         _uiState.update { it.copy(errorMessage = null) }
     }
