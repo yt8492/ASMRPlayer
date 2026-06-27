@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -13,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -59,7 +61,9 @@ fun PlaylistListRoute(
         uiState = uiState,
         onPlaylistClick = onPlaylistClick,
         onCreatePlaylist = viewModel::createPlaylist,
+        onRenamePlaylist = viewModel::renamePlaylist,
         onDeletePlaylist = viewModel::deletePlaylist,
+        onToggleEditMode = viewModel::toggleEditMode,
         onErrorShown = viewModel::consumeError,
         bottomBar = bottomBar,
         modifier = modifier,
@@ -72,13 +76,16 @@ fun PlaylistListScreen(
     uiState: PlaylistListUiState,
     onPlaylistClick: (Playlist) -> Unit,
     onCreatePlaylist: (String) -> Unit,
+    onRenamePlaylist: (playlistId: Long, name: String) -> Unit,
     onDeletePlaylist: (Long) -> Unit,
+    onToggleEditMode: () -> Unit,
     onErrorShown: () -> Unit,
     modifier: Modifier = Modifier,
     bottomBar: @Composable () -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     var isCreateDialogVisible by remember { mutableStateOf(false) }
+    var playlistForRename by remember { mutableStateOf<Playlist?>(null) }
 
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let { message ->
@@ -90,7 +97,18 @@ fun PlaylistListScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(title = { Text(text = stringResource(id = R.string.playlist_list_title)) })
+            TopAppBar(
+                title = { Text(text = stringResource(id = R.string.playlist_list_title)) },
+                actions = {
+                    TextButton(onClick = onToggleEditMode) {
+                        Text(
+                            text = stringResource(
+                                id = if (uiState.isEditMode) R.string.common_done else R.string.common_edit,
+                            ),
+                        )
+                    }
+                },
+            )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { isCreateDialogVisible = true }) {
@@ -121,7 +139,11 @@ fun PlaylistListScreen(
                         key = { it.id },
                     ) { playlist ->
                         ListItem(
-                            modifier = Modifier.clickable { onPlaylistClick(playlist) },
+                            modifier = if (uiState.isEditMode) {
+                                Modifier
+                            } else {
+                                Modifier.clickable { onPlaylistClick(playlist) }
+                            },
                             leadingContent = {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.PlaylistPlay,
@@ -139,11 +161,21 @@ fun PlaylistListScreen(
                                 Text(text = stringResource(id = R.string.playlist_track_count, playlist.trackCount))
                             },
                             trailingContent = {
-                                IconButton(onClick = { onDeletePlaylist(playlist.id) }) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Delete,
-                                        contentDescription = stringResource(id = R.string.playlist_delete),
-                                    )
+                                if (uiState.isEditMode) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        IconButton(onClick = { playlistForRename = playlist }) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Edit,
+                                                contentDescription = stringResource(id = R.string.playlist_rename),
+                                            )
+                                        }
+                                        IconButton(onClick = { onDeletePlaylist(playlist.id) }) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Delete,
+                                                contentDescription = stringResource(id = R.string.playlist_delete),
+                                            )
+                                        }
+                                    }
                                 }
                             },
                         )
@@ -162,6 +194,20 @@ fun PlaylistListScreen(
                 onCreatePlaylist(name)
                 isCreateDialogVisible = false
             },
+            confirmText = stringResource(id = R.string.common_create),
+        )
+    }
+
+    playlistForRename?.let { playlist ->
+        PlaylistNameDialog(
+            title = stringResource(id = R.string.playlist_rename),
+            initialName = playlist.name,
+            onDismiss = { playlistForRename = null },
+            onConfirm = { name ->
+                onRenamePlaylist(playlist.id, name)
+                playlistForRename = null
+            },
+            confirmText = stringResource(id = R.string.common_save),
         )
     }
 }
@@ -169,10 +215,12 @@ fun PlaylistListScreen(
 @Composable
 fun PlaylistNameDialog(
     title: String,
+    initialName: String = "",
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
+    confirmText: String,
 ) {
-    var name by remember { mutableStateOf("") }
+    var name by remember(initialName) { mutableStateOf(initialName) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = title) },
@@ -192,7 +240,7 @@ fun PlaylistNameDialog(
                 onClick = { onConfirm(name) },
                 enabled = name.isNotBlank(),
             ) {
-                Text(text = stringResource(id = R.string.common_create))
+                Text(text = confirmText)
             }
         },
         dismissButton = {

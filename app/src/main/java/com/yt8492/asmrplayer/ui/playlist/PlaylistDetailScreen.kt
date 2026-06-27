@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,6 +33,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -99,9 +101,11 @@ fun PlaylistDetailRoute(
         onRequestPermission = { permissionLauncher.launch(permission) },
         onBack = onBack,
         onTrackClick = { index -> onTrackClick(uiState.tracks, index) },
+        onRenamePlaylist = viewModel::renamePlaylist,
         onRemoveTrack = viewModel::removeTrack,
         onMoveTrack = viewModel::moveTrack,
         onDragFinished = viewModel::saveCurrentOrder,
+        onToggleEditMode = viewModel::toggleEditMode,
         onErrorShown = viewModel::consumeError,
         modifier = modifier,
     )
@@ -115,13 +119,16 @@ fun PlaylistDetailScreen(
     onRequestPermission: () -> Unit,
     onBack: () -> Unit,
     onTrackClick: (Int) -> Unit,
+    onRenamePlaylist: (String) -> Unit,
     onRemoveTrack: (Long) -> Unit,
     onMoveTrack: (fromIndex: Int, toIndex: Int) -> Unit,
     onDragFinished: () -> Unit,
+    onToggleEditMode: () -> Unit,
     onErrorShown: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    var isRenameDialogVisible by remember { mutableStateOf(false) }
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
@@ -145,6 +152,23 @@ fun PlaylistDetailScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(id = R.string.track_list_back),
+                        )
+                    }
+                },
+                actions = {
+                    if (uiState.isEditMode && uiState.playlist != null) {
+                        IconButton(onClick = { isRenameDialogVisible = true }) {
+                            Icon(
+                                imageVector = Icons.Filled.Edit,
+                                contentDescription = stringResource(id = R.string.playlist_rename),
+                            )
+                        }
+                    }
+                    TextButton(onClick = onToggleEditMode) {
+                        Text(
+                            text = stringResource(
+                                id = if (uiState.isEditMode) R.string.common_done else R.string.common_edit,
+                            ),
                         )
                     }
                 },
@@ -173,6 +197,7 @@ fun PlaylistDetailScreen(
 
                 else -> ReorderableTrackList(
                     tracks = uiState.tracks,
+                    isEditMode = uiState.isEditMode,
                     onTrackClick = onTrackClick,
                     onRemoveTrack = onRemoveTrack,
                     onMoveTrack = onMoveTrack,
@@ -181,6 +206,19 @@ fun PlaylistDetailScreen(
                 )
             }
         }
+    }
+
+    if (isRenameDialogVisible) {
+        PlaylistNameDialog(
+            title = stringResource(id = R.string.playlist_rename),
+            initialName = uiState.playlist?.name.orEmpty(),
+            onDismiss = { isRenameDialogVisible = false },
+            onConfirm = { name ->
+                onRenamePlaylist(name)
+                isRenameDialogVisible = false
+            },
+            confirmText = stringResource(id = R.string.common_save),
+        )
     }
 }
 
@@ -213,6 +251,7 @@ private fun PermissionRequest(
 @Composable
 private fun ReorderableTrackList(
     tracks: List<Track>,
+    isEditMode: Boolean,
     onTrackClick: (Int) -> Unit,
     onRemoveTrack: (Long) -> Unit,
     onMoveTrack: (fromIndex: Int, toIndex: Int) -> Unit,
@@ -235,44 +274,54 @@ private fun ReorderableTrackList(
                     .graphicsLayer {
                         translationY = if (draggingTrackId == track.id) draggingOffset else 0f
                     }
-                    .clickable { onTrackClick(index) },
-                leadingContent = {
-                    Icon(
-                        imageVector = Icons.Filled.DragHandle,
-                        contentDescription = stringResource(id = R.string.playlist_reorder),
-                        modifier = Modifier.pointerInput(track.id) {
-                            detectDragGesturesAfterLongPress(
-                                onDragStart = {
-                                    draggingTrackId = track.id
-                                    draggingOffset = 0f
-                                    currentIndex = index
-                                },
-                                onDragEnd = {
-                                    draggingTrackId = null
-                                    draggingOffset = 0f
-                                    onDragFinished()
-                                },
-                                onDragCancel = {
-                                    draggingTrackId = null
-                                    draggingOffset = 0f
-                                },
-                                onDrag = { change, dragAmount ->
-                                    change.consume()
-                                    draggingOffset += dragAmount.y
-                                    while (draggingOffset > itemHeightPx && currentIndex < latestLastIndex) {
-                                        onMoveTrack(currentIndex, currentIndex + 1)
-                                        currentIndex += 1
-                                        draggingOffset -= itemHeightPx
-                                    }
-                                    while (draggingOffset < -itemHeightPx && currentIndex > 0) {
-                                        onMoveTrack(currentIndex, currentIndex - 1)
-                                        currentIndex -= 1
-                                        draggingOffset += itemHeightPx
-                                    }
-                                },
-                            )
+                    .then(
+                        if (isEditMode) {
+                            Modifier
+                        } else {
+                            Modifier.clickable { onTrackClick(index) }
                         },
-                    )
+                    ),
+                leadingContent = if (isEditMode) {
+                    {
+                        Icon(
+                            imageVector = Icons.Filled.DragHandle,
+                            contentDescription = stringResource(id = R.string.playlist_reorder),
+                            modifier = Modifier.pointerInput(track.id) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = {
+                                        draggingTrackId = track.id
+                                        draggingOffset = 0f
+                                        currentIndex = index
+                                    },
+                                    onDragEnd = {
+                                        draggingTrackId = null
+                                        draggingOffset = 0f
+                                        onDragFinished()
+                                    },
+                                    onDragCancel = {
+                                        draggingTrackId = null
+                                        draggingOffset = 0f
+                                    },
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
+                                        draggingOffset += dragAmount.y
+                                        while (draggingOffset > itemHeightPx && currentIndex < latestLastIndex) {
+                                            onMoveTrack(currentIndex, currentIndex + 1)
+                                            currentIndex += 1
+                                            draggingOffset -= itemHeightPx
+                                        }
+                                        while (draggingOffset < -itemHeightPx && currentIndex > 0) {
+                                            onMoveTrack(currentIndex, currentIndex - 1)
+                                            currentIndex -= 1
+                                            draggingOffset += itemHeightPx
+                                        }
+                                    },
+                                )
+                            },
+                        )
+                    }
+                } else {
+                    null
                 },
                 headlineContent = {
                     Text(
@@ -297,11 +346,13 @@ private fun ReorderableTrackList(
                             text = formatDuration(track.durationMs),
                             style = MaterialTheme.typography.labelMedium,
                         )
-                        IconButton(onClick = { onRemoveTrack(track.id) }) {
-                            Icon(
-                                imageVector = Icons.Filled.Delete,
-                                contentDescription = stringResource(id = R.string.playlist_track_remove),
-                            )
+                        if (isEditMode) {
+                            IconButton(onClick = { onRemoveTrack(track.id) }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Delete,
+                                    contentDescription = stringResource(id = R.string.playlist_track_remove),
+                                )
+                            }
                         }
                     }
                 },

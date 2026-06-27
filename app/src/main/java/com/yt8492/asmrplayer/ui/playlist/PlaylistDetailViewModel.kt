@@ -67,6 +67,20 @@ class PlaylistDetailViewModel(
         }
     }
 
+    fun renamePlaylist(name: String) {
+        val trimmedName = name.trim()
+        if (trimmedName.isEmpty()) return
+        viewModelScope.launch {
+            runCatching {
+                playlistRepository.renamePlaylist(playlistId, trimmedName)
+            }.onFailure {
+                _uiState.update { state ->
+                    state.copy(errorMessage = "プレイリスト名の変更に失敗しました")
+                }
+            }
+        }
+    }
+
     fun moveTrack(fromIndex: Int, toIndex: Int) {
         val currentTracks = _uiState.value.tracks
         val movedTrackIds = PlaylistTrackOrder.move(
@@ -90,6 +104,10 @@ class PlaylistDetailViewModel(
                 }
             }
         }
+    }
+
+    fun toggleEditMode() {
+        _uiState.update { it.copy(isEditMode = !it.isEditMode) }
     }
 
     fun consumeError() {

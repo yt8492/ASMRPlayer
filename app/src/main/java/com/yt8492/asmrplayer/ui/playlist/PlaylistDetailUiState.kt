@@ -7,5 +7,6 @@ data class PlaylistDetailUiState(
     val isLoading: Boolean = true,
     val playlist: Playlist? = null,
     val tracks: List<Track> = emptyList(),
+    val isEditMode: Boolean = false,
     val errorMessage: String? = null,
 )

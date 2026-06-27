@@ -41,6 +41,20 @@ class PlaylistListViewModel(
         }
     }
 
+    fun renamePlaylist(playlistId: Long, name: String) {
+        val trimmedName = name.trim()
+        if (trimmedName.isEmpty()) return
+        viewModelScope.launch {
+            runCatching {
+                playlistRepository.renamePlaylist(playlistId, trimmedName)
+            }.onFailure {
+                _uiState.update { state ->
+                    state.copy(errorMessage = "プレイリスト名の変更に失敗しました")
+                }
+            }
+        }
+    }
+
     fun deletePlaylist(playlistId: Long) {
         viewModelScope.launch {
             runCatching {
@@ -51,6 +65,10 @@ class PlaylistListViewModel(
                 }
             }
         }
+    }
+
+    fun toggleEditMode() {
+        _uiState.update { it.copy(isEditMode = !it.isEditMode) }
     }
 
     fun consumeError() {

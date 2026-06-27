@@ -47,6 +47,7 @@
     <string name="playlist_detail_empty">このプレイリストにトラックがありません</string>
     <string name="playlist_create">プレイリストを作成</string>
     <string name="playlist_delete">プレイリストを削除</string>
+    <string name="playlist_rename">プレイリスト名を変更</string>
     <string name="playlist_name">プレイリスト名</string>
     <string name="playlist_track_count">%1$d曲</string>
     <string name="playlist_add_track">プレイリストに追加</string>
@@ -64,5 +65,8 @@
     <string name="file_explorer_image_preview">画像プレビュー</string>
     <string name="file_explorer_image_close">画像プレビューを閉じる</string>
     <string name="common_create">作成</string>
+    <string name="common_edit">編集</string>
+    <string name="common_done">完了</string>
+    <string name="common_save">保存</string>
     <string name="common_cancel">キャンセル</string>
 </resources>

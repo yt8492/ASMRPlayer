@@ -4,5 +4,6 @@ import com.yt8492.asmrplayer.data.model.Playlist
 
 data class PlaylistListUiState(
     val playlists: List<Playlist> = emptyList(),
+    val isEditMode: Boolean = false,
     val errorMessage: String? = null,
 )
