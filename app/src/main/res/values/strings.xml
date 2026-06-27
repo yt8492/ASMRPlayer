@@ -61,6 +61,8 @@
     <string name="file_explorer_permission_description">端末内の音声ファイルと画像ファイルをフォルダごとに表示するために、メディアファイルへのアクセス権限を許可してください。</string>
     <string name="file_explorer_folder_content_description">フォルダ</string>
     <string name="file_explorer_item_count">%1$d件</string>
+    <string name="file_explorer_missing_permission_title">一部のメディアが表示されていません</string>
+    <string name="file_explorer_missing_permission_description">画像ファイルを表示するには、追加のメディアアクセス権限を許可してください。</string>
     <string name="file_explorer_image_preview">画像プレビュー</string>
     <string name="file_explorer_image_close">画像プレビューを閉じる</string>
     <string name="common_create">作成</string>

@@ -6,6 +6,7 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +16,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -43,6 +46,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -51,6 +56,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -80,37 +87,20 @@ fun FileExplorerRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val rootTitle = stringResource(id = R.string.file_explorer_title)
-    val permissions = remember {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            buildList {
-                add(Manifest.permission.READ_MEDIA_AUDIO)
-                add(Manifest.permission.READ_MEDIA_IMAGES)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    add(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
-                }
-            }.toTypedArray()
-        } else {
-            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
-        }
-    }
-    var hasPermission by remember {
-        mutableStateOf(
-            permissions.any { permission ->
-                ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
-            },
-        )
-    }
+    val permissions = remember { fileExplorerPermissions() }
+    var mediaPermissionState by remember { mutableStateOf(context.currentMediaPermissionState()) }
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions(),
-    ) { result ->
-        hasPermission = result.values.any { it }
-        if (hasPermission) {
+    ) {
+        mediaPermissionState = context.currentMediaPermissionState()
+        if (mediaPermissionState.hasAnyPermission) {
             viewModel.loadContent()
         }
     }
 
-    LaunchedEffect(hasPermission) {
-        if (hasPermission) {
+    LaunchedEffect(mediaPermissionState.hasAnyPermission) {
+        mediaPermissionState = context.currentMediaPermissionState()
+        if (mediaPermissionState.hasAnyPermission) {
             viewModel.loadContent()
         }
     }
@@ -121,7 +111,8 @@ fun FileExplorerRoute(
 
     FileExplorerScreen(
         uiState = uiState,
-        hasPermission = hasPermission,
+        hasPermission = mediaPermissionState.hasAnyPermission,
+        hasMissingPermission = mediaPermissionState.hasMissingPermission,
         onRequestPermission = { permissionLauncher.launch(permissions) },
         onRetry = viewModel::loadContent,
         onDirectoryClick = viewModel::openDirectory,
@@ -147,6 +138,7 @@ fun FileExplorerRoute(
 fun FileExplorerScreen(
     uiState: FileExplorerUiState,
     hasPermission: Boolean,
+    hasMissingPermission: Boolean,
     onRequestPermission: () -> Unit,
     onRetry: () -> Unit,
     onDirectoryClick: (String) -> Unit,
@@ -229,6 +221,8 @@ fun FileExplorerScreen(
                     directories = uiState.directories,
                     tracks = uiState.tracks,
                     images = uiState.images,
+                    hasMissingPermission = hasMissingPermission,
+                    onRequestPermission = onRequestPermission,
                     onDirectoryClick = onDirectoryClick,
                     onTrackClick = onTrackClick,
                     onImageClick = { image -> previewImage = image },
@@ -325,6 +319,8 @@ private fun FileExplorerList(
     directories: List<AudioDirectory>,
     tracks: List<Track>,
     images: List<ImageFile>,
+    hasMissingPermission: Boolean,
+    onRequestPermission: () -> Unit,
     onDirectoryClick: (String) -> Unit,
     onTrackClick: (Int) -> Unit,
     onImageClick: (ImageFile) -> Unit,
@@ -332,6 +328,12 @@ private fun FileExplorerList(
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(modifier = modifier) {
+        if (hasMissingPermission) {
+            item(key = "missing-permission") {
+                MissingPermissionItem(onRequestPermission = onRequestPermission)
+                HorizontalDivider()
+            }
+        }
         items(
             items = directories,
             key = { it.path },
@@ -410,9 +412,16 @@ private fun FileExplorerList(
             ListItem(
                 modifier = Modifier.clickable { onImageClick(image) },
                 leadingContent = {
-                    Icon(
-                        imageVector = Icons.Filled.Image,
+                    AsyncImage(
+                        model = image.uri,
                         contentDescription = null,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(MaterialTheme.shapes.small),
+                        contentScale = ContentScale.Crop,
+                        placeholder = rememberVectorPainter(Icons.Filled.Image),
+                        error = rememberVectorPainter(Icons.Filled.Image),
+                        fallback = rememberVectorPainter(Icons.Filled.Image),
                     )
                 },
                 headlineContent = {
@@ -436,35 +445,70 @@ private fun FileExplorerList(
 }
 
 @Composable
+private fun MissingPermissionItem(
+    onRequestPermission: () -> Unit,
+) {
+    ListItem(
+        headlineContent = {
+            Text(text = stringResource(id = R.string.file_explorer_missing_permission_title))
+        },
+        supportingContent = {
+            Text(text = stringResource(id = R.string.file_explorer_missing_permission_description))
+        },
+        trailingContent = {
+            TextButton(onClick = onRequestPermission) {
+                Text(text = stringResource(id = R.string.album_permission_button))
+            }
+        },
+    )
+}
+
+@Composable
 private fun ImagePreviewDialog(
     image: ImageFile,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        title = {
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight()
+                .padding(horizontal = 16.dp)
+                .clip(MaterialTheme.shapes.large)
+                .background(MaterialTheme.colorScheme.surface),
+        ) {
             Text(
                 text = image.title,
+                style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
             )
-        },
-        text = {
             AsyncImage(
                 model = image.uri,
                 contentDescription = stringResource(id = R.string.file_explorer_image_preview),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 520.dp),
+                    .heightIn(max = 680.dp),
                 contentScale = ContentScale.Fit,
             )
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(id = R.string.file_explorer_image_close))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                TextButton(onClick = onDismiss) {
+                    Text(text = stringResource(id = R.string.file_explorer_image_close))
+                }
             }
-        },
-    )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -594,6 +638,7 @@ private fun FileExplorerScreenPreview() {
             ),
         ),
         hasPermission = true,
+        hasMissingPermission = false,
         onRequestPermission = {},
         onRetry = {},
         onDirectoryClick = {},
@@ -604,4 +649,47 @@ private fun FileExplorerScreenPreview() {
         onErrorShown = {},
         onPlaylistMessageShown = {},
     )
+}
+
+private data class MediaPermissionState(
+    val hasAnyPermission: Boolean,
+    val hasMissingPermission: Boolean,
+)
+
+private fun fileExplorerPermissions(): Array<String> {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        buildList {
+            add(Manifest.permission.READ_MEDIA_AUDIO)
+            add(Manifest.permission.READ_MEDIA_IMAGES)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                add(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
+            }
+        }.toTypedArray()
+    } else {
+        arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+    }
+}
+
+private fun android.content.Context.currentMediaPermissionState(): MediaPermissionState {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+        val hasStoragePermission = hasPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
+        return MediaPermissionState(
+            hasAnyPermission = hasStoragePermission,
+            hasMissingPermission = !hasStoragePermission,
+        )
+    }
+
+    val hasAudioPermission = hasPermission(Manifest.permission.READ_MEDIA_AUDIO)
+    val hasFullImagePermission = hasPermission(Manifest.permission.READ_MEDIA_IMAGES)
+    val hasSelectedImagePermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
+        hasPermission(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
+    val hasImagePermission = hasFullImagePermission || hasSelectedImagePermission
+    return MediaPermissionState(
+        hasAnyPermission = hasAudioPermission || hasImagePermission,
+        hasMissingPermission = !hasAudioPermission || !hasImagePermission,
+    )
+}
+
+private fun android.content.Context.hasPermission(permission: String): Boolean {
+    return ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
 }
