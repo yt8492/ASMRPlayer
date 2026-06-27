@@ -58,8 +58,37 @@ interface PlaylistDao {
     @Insert
     suspend fun insertTracks(tracks: List<PlaylistTrackEntity>)
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertTracksIgnoringConflicts(tracks: List<PlaylistTrackEntity>): List<Long>
+
     @Query("UPDATE playlists SET updatedAt = :updatedAt WHERE id = :playlistId")
     suspend fun touchPlaylist(playlistId: Long, updatedAt: Long)
+
+    @Transaction
+    suspend fun appendTracks(playlistId: Long, trackIds: List<Long>, addedAt: Long): Int {
+        val currentTrackIds = getTrackIds(playlistId).toSet()
+        val tracksToAdd = trackIds
+            .distinct()
+            .filterNot { it in currentTrackIds }
+        if (tracksToAdd.isEmpty()) return 0
+
+        val startPosition = getTrackCount(playlistId)
+        val insertedIds = insertTracksIgnoringConflicts(
+            tracksToAdd.mapIndexed { index, trackId ->
+                PlaylistTrackEntity(
+                    playlistId = playlistId,
+                    trackId = trackId,
+                    position = startPosition + index,
+                    addedAt = addedAt,
+                )
+            },
+        )
+        val addedCount = insertedIds.count { it != -1L }
+        if (addedCount > 0) {
+            touchPlaylist(playlistId, addedAt)
+        }
+        return addedCount
+    }
 
     @Transaction
     suspend fun replaceTrackOrder(playlistId: Long, trackIds: List<Long>, updatedAt: Long) {

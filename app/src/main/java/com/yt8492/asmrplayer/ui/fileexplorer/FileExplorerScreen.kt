@@ -126,6 +126,7 @@ fun FileExplorerRoute(
         },
         onAddTrackToPlaylist = viewModel::addTrackToPlaylist,
         onCreatePlaylistAndAddTrack = viewModel::createPlaylistAndAddTrack,
+        onCreatePlaylistFromDirectory = viewModel::createPlaylistFromDirectory,
         onErrorShown = viewModel::consumeError,
         onPlaylistMessageShown = viewModel::consumePlaylistMessage,
         bottomBar = bottomBar,
@@ -146,6 +147,7 @@ fun FileExplorerScreen(
     onTrackClick: (Int) -> Unit,
     onAddTrackToPlaylist: (playlistId: Long, trackId: Long) -> Unit,
     onCreatePlaylistAndAddTrack: (name: String, trackId: Long) -> Unit,
+    onCreatePlaylistFromDirectory: (name: String, directoryPath: String) -> Unit,
     onErrorShown: () -> Unit,
     onPlaylistMessageShown: () -> Unit,
     modifier: Modifier = Modifier,
@@ -154,6 +156,7 @@ fun FileExplorerScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedTrack by remember { mutableStateOf<Track?>(null) }
     var trackForNewPlaylist by remember { mutableStateOf<Track?>(null) }
+    var directoryForNewPlaylist by remember { mutableStateOf<AudioDirectory?>(null) }
     var previewImage by remember { mutableStateOf<ImageFile?>(null) }
     val isRoot = uiState.currentPath.isEmpty()
     val title = uiState.currentPath.trim('/').substringAfterLast(
@@ -185,6 +188,24 @@ fun FileExplorerScreen(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = stringResource(id = R.string.track_list_back),
+                            )
+                        }
+                    }
+                },
+                actions = {
+                    if (!isRoot) {
+                        IconButton(
+                            onClick = {
+                                directoryForNewPlaylist = AudioDirectory(
+                                    path = uiState.currentPath,
+                                    name = title,
+                                    trackCount = uiState.tracks.size,
+                                )
+                            },
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.PlaylistAdd,
+                                contentDescription = stringResource(id = R.string.playlist_create_from_folder),
                             )
                         }
                     }
@@ -227,6 +248,7 @@ fun FileExplorerScreen(
                     onTrackClick = onTrackClick,
                     onImageClick = { image -> previewImage = image },
                     onAddToPlaylistClick = { track -> selectedTrack = track },
+                    onAddDirectoryToPlaylistClick = { directory -> directoryForNewPlaylist = directory },
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -250,10 +272,22 @@ fun FileExplorerScreen(
 
     trackForNewPlaylist?.let { track ->
         CreatePlaylistDialog(
+            initialName = "",
             onDismiss = { trackForNewPlaylist = null },
             onConfirm = { name ->
                 onCreatePlaylistAndAddTrack(name, track.id)
                 trackForNewPlaylist = null
+            },
+        )
+    }
+
+    directoryForNewPlaylist?.let { directory ->
+        CreatePlaylistDialog(
+            initialName = directory.name,
+            onDismiss = { directoryForNewPlaylist = null },
+            onConfirm = { name ->
+                onCreatePlaylistFromDirectory(name, directory.path)
+                directoryForNewPlaylist = null
             },
         )
     }
@@ -325,6 +359,7 @@ private fun FileExplorerList(
     onTrackClick: (Int) -> Unit,
     onImageClick: (ImageFile) -> Unit,
     onAddToPlaylistClick: (Track) -> Unit,
+    onAddDirectoryToPlaylistClick: (AudioDirectory) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(modifier = modifier) {
@@ -355,6 +390,14 @@ private fun FileExplorerList(
                 },
                 supportingContent = {
                     Text(text = stringResource(id = R.string.file_explorer_item_count, directory.trackCount))
+                },
+                trailingContent = {
+                    IconButton(onClick = { onAddDirectoryToPlaylistClick(directory) }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.PlaylistAdd,
+                            contentDescription = stringResource(id = R.string.playlist_create_from_folder),
+                        )
+                    }
                 },
             )
             HorizontalDivider()
@@ -570,10 +613,11 @@ private fun PlaylistPickerSheet(
 
 @Composable
 private fun CreatePlaylistDialog(
+    initialName: String,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
-    var name by remember { mutableStateOf("") }
+    var name by remember(initialName) { mutableStateOf(initialName) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = stringResource(id = R.string.playlist_create)) },
@@ -646,6 +690,7 @@ private fun FileExplorerScreenPreview() {
         onTrackClick = {},
         onAddTrackToPlaylist = { _, _ -> },
         onCreatePlaylistAndAddTrack = { _, _ -> },
+        onCreatePlaylistFromDirectory = { _, _ -> },
         onErrorShown = {},
         onPlaylistMessageShown = {},
     )

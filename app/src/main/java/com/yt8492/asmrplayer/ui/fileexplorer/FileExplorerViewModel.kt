@@ -10,6 +10,8 @@ import com.yt8492.asmrplayer.data.repository.FileExplorerRepository
 import com.yt8492.asmrplayer.data.repository.FileExplorerRepositoryImpl
 import com.yt8492.asmrplayer.data.repository.PlaylistRepository
 import com.yt8492.asmrplayer.data.repository.PlaylistRepositoryImpl
+import com.yt8492.asmrplayer.data.repository.TrackRepository
+import com.yt8492.asmrplayer.data.repository.TrackRepositoryImpl
 import com.yt8492.asmrplayer.data.repository.normalizeDirectoryPath
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +22,7 @@ import kotlinx.coroutines.launch
 class FileExplorerViewModel(
     private val repository: FileExplorerRepository,
     private val playlistRepository: PlaylistRepository,
+    private val trackRepository: TrackRepository,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(FileExplorerUiState())
     val uiState: StateFlow<FileExplorerUiState> = _uiState.asStateFlow()
@@ -112,6 +115,33 @@ class FileExplorerViewModel(
         }
     }
 
+    fun createPlaylistFromDirectory(name: String, directoryPath: String) {
+        val trimmedName = name.trim()
+        if (trimmedName.isEmpty()) return
+        viewModelScope.launch {
+            runCatching {
+                val tracks = trackRepository.getTracksInDirectory(directoryPath)
+                if (tracks.isEmpty()) {
+                    return@runCatching null
+                }
+                val playlistId = playlistRepository.createPlaylist(trimmedName)
+                playlistRepository.addTracks(
+                    playlistId = playlistId,
+                    trackIds = tracks.map { it.id },
+                )
+            }.onSuccess { result ->
+                val message = if (result == null) {
+                    "このフォルダに追加できる音声ファイルがありません"
+                } else {
+                    "プレイリストを作成して${result.addedCount}曲追加しました"
+                }
+                _uiState.update { it.copy(playlistMessage = message) }
+            }.onFailure {
+                _uiState.update { it.copy(playlistMessage = "プレイリストの作成に失敗しました") }
+            }
+        }
+    }
+
     fun consumePlaylistMessage() {
         _uiState.update { it.copy(playlistMessage = null) }
     }
@@ -122,11 +152,12 @@ class FileExplorerViewModel(
             return object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     val repository = FileExplorerRepositoryImpl(applicationContext)
+                    val trackRepository = TrackRepositoryImpl(applicationContext)
                     val playlistRepository = PlaylistRepositoryImpl(
                         AppDatabase.getInstance(applicationContext).playlistDao(),
                     )
                     @Suppress("UNCHECKED_CAST")
-                    return FileExplorerViewModel(repository, playlistRepository) as T
+                    return FileExplorerViewModel(repository, playlistRepository, trackRepository) as T
                 }
             }
         }

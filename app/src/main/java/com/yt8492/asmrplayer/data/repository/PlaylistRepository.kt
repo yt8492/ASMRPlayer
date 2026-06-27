@@ -12,6 +12,7 @@ interface PlaylistRepository {
     suspend fun renamePlaylist(playlistId: Long, name: String)
     suspend fun deletePlaylist(playlistId: Long)
     suspend fun addTrack(playlistId: Long, trackId: Long): AddTrackResult
+    suspend fun addTracks(playlistId: Long, trackIds: List<Long>): AddTracksResult
     suspend fun removeTrack(playlistId: Long, trackId: Long)
     suspend fun replaceTrackOrder(playlistId: Long, trackIds: List<Long>)
 }
@@ -20,3 +21,8 @@ enum class AddTrackResult {
     Added,
     AlreadyExists,
 }
+
+data class AddTracksResult(
+    val addedCount: Int,
+    val skippedCount: Int,
+)

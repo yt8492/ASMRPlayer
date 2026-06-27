@@ -81,6 +81,22 @@ class PlaylistRepositoryImpl(
         if (inserted == -1L) AddTrackResult.AlreadyExists else AddTrackResult.Added
     }
 
+    override suspend fun addTracks(playlistId: Long, trackIds: List<Long>): AddTracksResult = withContext(Dispatchers.IO) {
+        val uniqueTrackIds = trackIds.distinct()
+        if (uniqueTrackIds.isEmpty()) {
+            return@withContext AddTracksResult(addedCount = 0, skippedCount = 0)
+        }
+        val addedCount = playlistDao.appendTracks(
+            playlistId = playlistId,
+            trackIds = uniqueTrackIds,
+            addedAt = System.currentTimeMillis(),
+        )
+        AddTracksResult(
+            addedCount = addedCount,
+            skippedCount = uniqueTrackIds.size - addedCount,
+        )
+    }
+
     override suspend fun removeTrack(playlistId: Long, trackId: Long) = withContext(Dispatchers.IO) {
         val remaining = PlaylistTrackOrder.remove(playlistDao.getTrackIds(playlistId), trackId)
         playlistDao.replaceTrackOrder(playlistId, remaining, System.currentTimeMillis())
