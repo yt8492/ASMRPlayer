@@ -37,7 +37,7 @@ class AlbumRepositoryImpl(
             }
             val id = cursor.getLong(idColumn)
             val title = cursor.getString(albumColumn).orEmpty()
-            val artist = cursor.getString(artistColumn).orEmpty()
+            val artist = normalizeArtistName(cursor.getString(artistColumn))
             val trackCount = cursor.getInt(trackCountColumn)
             val albumArtUri = runCatching {
                 val albumArtColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.ALBUM_ART)
@@ -81,7 +81,7 @@ class AlbumRepositoryImpl(
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
                 val title = cursor.getString(albumColumn).orEmpty()
-                val artist = cursor.getString(artistColumn).orEmpty()
+                val artist = normalizeArtistName(cursor.getString(artistColumn))
                 val trackCount = cursor.getInt(trackCountColumn)
                 val albumArtUri = runCatching {
                     val albumArt = cursor.getString(albumArtColumn)

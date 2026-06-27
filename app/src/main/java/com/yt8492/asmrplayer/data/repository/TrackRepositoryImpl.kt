@@ -49,7 +49,7 @@ class TrackRepositoryImpl(
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
                 val title = cursor.getString(titleColumn).orEmpty()
-                val artist = cursor.getString(artistColumn).orEmpty()
+                val artist = normalizeArtistName(cursor.getString(artistColumn))
                 val trackAlbumId = cursor.getLong(albumIdColumn)
                 val albumTitle = cursor.getString(albumTitleColumn).orEmpty()
                 val durationMs = cursor.getLong(durationColumn)
@@ -163,7 +163,7 @@ class TrackRepositoryImpl(
                     Track(
                         id = id,
                         title = title,
-                        artist = cursor.getString(artistColumn).orEmpty(),
+                        artist = normalizeArtistName(cursor.getString(artistColumn)),
                         albumId = albumId,
                         albumTitle = cursor.getString(albumTitleColumn).orEmpty(),
                         albumArtUri = albumArtUri(albumId),
@@ -217,7 +217,7 @@ class TrackRepositoryImpl(
                 tracksById[id] = Track(
                     id = id,
                     title = cursor.getString(titleColumn).orEmpty(),
-                    artist = cursor.getString(artistColumn).orEmpty(),
+                    artist = normalizeArtistName(cursor.getString(artistColumn)),
                     albumId = cursor.getLong(albumIdColumn),
                     albumTitle = cursor.getString(albumTitleColumn).orEmpty(),
                     albumArtUri = albumArtUri(cursor.getLong(albumIdColumn)),

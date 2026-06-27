@@ -118,7 +118,7 @@ class FileExplorerRepositoryImpl(
                         track = Track(
                             id = id,
                             title = title,
-                            artist = cursor.getString(artistColumn).orEmpty(),
+                            artist = normalizeArtistName(cursor.getString(artistColumn)),
                             albumId = albumId,
                             albumTitle = cursor.getString(albumTitleColumn).orEmpty(),
                             albumArtUri = albumArtUri(albumId),
