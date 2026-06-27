@@ -309,7 +309,7 @@ private fun EmptyFileExplorer(
             style = MaterialTheme.typography.bodyLarge,
         )
         Button(onClick = onRetry) {
-            Text(text = stringResource(id = R.string.album_list_retry))
+            Text(text = stringResource(id = R.string.common_retry))
         }
     }
 }

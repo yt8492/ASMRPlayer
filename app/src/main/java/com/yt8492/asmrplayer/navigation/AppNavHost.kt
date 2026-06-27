@@ -4,7 +4,6 @@ import android.net.Uri
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
-import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -23,7 +22,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.yt8492.asmrplayer.service.PlaybackService
-import com.yt8492.asmrplayer.ui.album.AlbumListRoute
 import com.yt8492.asmrplayer.ui.fileexplorer.FileExplorerRoute
 import com.yt8492.asmrplayer.ui.player.PlaybackQueue
 import com.yt8492.asmrplayer.ui.player.PlayerRoute
@@ -70,22 +68,16 @@ fun AppNavHost(
     val bottomBar: @Composable () -> Unit = {
         MainNavigationBar(
             currentRoute = currentRoute,
-            onNavigateToAlbums = {
-                navController.navigate("album_list") {
-                    launchSingleTop = true
-                    popUpTo("album_list")
-                }
-            },
             onNavigateToPlaylists = {
                 navController.navigate("playlist_list") {
                     launchSingleTop = true
-                    popUpTo("album_list")
+                    popUpTo("file_explorer")
                 }
             },
             onNavigateToFiles = {
                 navController.navigate("file_explorer") {
                     launchSingleTop = true
-                    popUpTo("album_list")
+                    popUpTo("file_explorer")
                 }
             },
         )
@@ -93,20 +85,9 @@ fun AppNavHost(
 
     NavHost(
         navController = navController,
-        startDestination = "album_list",
+        startDestination = "file_explorer",
         modifier = modifier,
     ) {
-        composable("album_list") {
-            AlbumListRoute(
-                modifier = androidx.compose.ui.Modifier.fillMaxSize(),
-                bottomBar = bottomBar,
-                onAlbumClick = { album ->
-                    val title = Uri.encode(album.title)
-                    val art = Uri.encode(album.albumArtUri?.toString() ?: "")
-                    navController.navigate("track_list/${album.id}?title=$title&art=$art")
-                },
-            )
-        }
         composable("playlist_list") {
             PlaylistListRoute(
                 modifier = androidx.compose.ui.Modifier.fillMaxSize(),
@@ -246,7 +227,6 @@ fun AppNavHost(
 @Composable
 private fun MainNavigationBar(
     currentRoute: String?,
-    onNavigateToAlbums: () -> Unit,
     onNavigateToPlaylists: () -> Unit,
     onNavigateToFiles: () -> Unit,
 ) {
@@ -262,10 +242,10 @@ private fun MainNavigationBar(
             unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         NavigationBarItem(
-            selected = currentRoute == "album_list",
-            onClick = onNavigateToAlbums,
-            icon = { Icon(Icons.Filled.Album, contentDescription = null) },
-            label = { Text("アルバム") },
+            selected = currentRoute == "file_explorer",
+            onClick = onNavigateToFiles,
+            icon = { Icon(Icons.Filled.Folder, contentDescription = null) },
+            label = { Text("ファイル") },
             colors = itemColors,
         )
         NavigationBarItem(
@@ -273,13 +253,6 @@ private fun MainNavigationBar(
             onClick = onNavigateToPlaylists,
             icon = { Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = null) },
             label = { Text("プレイリスト") },
-            colors = itemColors,
-        )
-        NavigationBarItem(
-            selected = currentRoute == "file_explorer",
-            onClick = onNavigateToFiles,
-            icon = { Icon(Icons.Filled.Folder, contentDescription = null) },
-            label = { Text("ファイル") },
             colors = itemColors,
         )
     }

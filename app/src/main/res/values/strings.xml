@@ -1,11 +1,9 @@
 <resources>
     <string name="app_name">ASMRPlayer</string>
-    <string name="album_list_title">アルバム</string>
     <string name="album_permission_title">音楽へのアクセス権限が必要です</string>
     <string name="album_permission_description">端末内のアルバムを表示するために、音楽ファイルへのアクセス権限を許可してください。</string>
     <string name="album_permission_button">権限を許可</string>
-    <string name="album_list_empty">アルバムが見つかりません</string>
-    <string name="album_list_retry">再読み込み</string>
+    <string name="common_retry">再読み込み</string>
     <string name="album_track_count">%1$d曲</string>
     <string name="track_list_empty">このアルバムのトラックが見つかりません</string>
     <string name="track_list_retry">再読み込み</string>
