@@ -127,6 +127,7 @@ fun FileExplorerRoute(
         onAddTrackToPlaylist = viewModel::addTrackToPlaylist,
         onCreatePlaylistAndAddTrack = viewModel::createPlaylistAndAddTrack,
         onCreatePlaylistFromDirectory = viewModel::createPlaylistFromDirectory,
+        onAddDirectoryToPlaylist = viewModel::addDirectoryToPlaylist,
         onErrorShown = viewModel::consumeError,
         onPlaylistMessageShown = viewModel::consumePlaylistMessage,
         bottomBar = bottomBar,
@@ -148,6 +149,7 @@ fun FileExplorerScreen(
     onAddTrackToPlaylist: (playlistId: Long, trackId: Long) -> Unit,
     onCreatePlaylistAndAddTrack: (name: String, trackId: Long) -> Unit,
     onCreatePlaylistFromDirectory: (name: String, directoryPath: String) -> Unit,
+    onAddDirectoryToPlaylist: (playlistId: Long, directoryPath: String) -> Unit,
     onErrorShown: () -> Unit,
     onPlaylistMessageShown: () -> Unit,
     modifier: Modifier = Modifier,
@@ -156,6 +158,7 @@ fun FileExplorerScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedTrack by remember { mutableStateOf<Track?>(null) }
     var trackForNewPlaylist by remember { mutableStateOf<Track?>(null) }
+    var selectedDirectory by remember { mutableStateOf<AudioDirectory?>(null) }
     var directoryForNewPlaylist by remember { mutableStateOf<AudioDirectory?>(null) }
     var previewImage by remember { mutableStateOf<ImageFile?>(null) }
     val isRoot = uiState.currentPath.isEmpty()
@@ -196,7 +199,7 @@ fun FileExplorerScreen(
                     if (!isRoot) {
                         IconButton(
                             onClick = {
-                                directoryForNewPlaylist = AudioDirectory(
+                                selectedDirectory = AudioDirectory(
                                     path = uiState.currentPath,
                                     name = title,
                                     trackCount = uiState.tracks.size,
@@ -205,7 +208,7 @@ fun FileExplorerScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.PlaylistAdd,
-                                contentDescription = stringResource(id = R.string.playlist_create_from_folder),
+                                contentDescription = stringResource(id = R.string.playlist_add_folder),
                             )
                         }
                     }
@@ -248,7 +251,7 @@ fun FileExplorerScreen(
                     onTrackClick = onTrackClick,
                     onImageClick = { image -> previewImage = image },
                     onAddToPlaylistClick = { track -> selectedTrack = track },
-                    onAddDirectoryToPlaylistClick = { directory -> directoryForNewPlaylist = directory },
+                    onAddDirectoryToPlaylistClick = { directory -> selectedDirectory = directory },
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -266,6 +269,21 @@ fun FileExplorerScreen(
             onPlaylistClick = { playlist ->
                 onAddTrackToPlaylist(playlist.id, track.id)
                 selectedTrack = null
+            },
+        )
+    }
+
+    selectedDirectory?.let { directory ->
+        PlaylistPickerSheet(
+            playlists = uiState.playlists,
+            onDismiss = { selectedDirectory = null },
+            onCreatePlaylist = {
+                directoryForNewPlaylist = directory
+                selectedDirectory = null
+            },
+            onPlaylistClick = { playlist ->
+                onAddDirectoryToPlaylist(playlist.id, directory.path)
+                selectedDirectory = null
             },
         )
     }
@@ -395,7 +413,7 @@ private fun FileExplorerList(
                     IconButton(onClick = { onAddDirectoryToPlaylistClick(directory) }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.PlaylistAdd,
-                            contentDescription = stringResource(id = R.string.playlist_create_from_folder),
+                            contentDescription = stringResource(id = R.string.playlist_add_folder),
                         )
                     }
                 },
@@ -691,6 +709,7 @@ private fun FileExplorerScreenPreview() {
         onAddTrackToPlaylist = { _, _ -> },
         onCreatePlaylistAndAddTrack = { _, _ -> },
         onCreatePlaylistFromDirectory = { _, _ -> },
+        onAddDirectoryToPlaylist = { _, _ -> },
         onErrorShown = {},
         onPlaylistMessageShown = {},
     )

@@ -142,6 +142,30 @@ class FileExplorerViewModel(
         }
     }
 
+    fun addDirectoryToPlaylist(playlistId: Long, directoryPath: String) {
+        viewModelScope.launch {
+            runCatching {
+                val tracks = trackRepository.getTracksInDirectory(directoryPath)
+                if (tracks.isEmpty()) {
+                    return@runCatching null
+                }
+                playlistRepository.addTracks(
+                    playlistId = playlistId,
+                    trackIds = tracks.map { it.id },
+                )
+            }.onSuccess { result ->
+                val message = when {
+                    result == null -> "このフォルダに追加できる音声ファイルがありません"
+                    result.addedCount == 0 -> "このフォルダのトラックは既に追加されています"
+                    else -> "プレイリストに${result.addedCount}曲追加しました"
+                }
+                _uiState.update { it.copy(playlistMessage = message) }
+            }.onFailure {
+                _uiState.update { it.copy(playlistMessage = "プレイリストへの追加に失敗しました") }
+            }
+        }
+    }
+
     fun consumePlaylistMessage() {
         _uiState.update { it.copy(playlistMessage = null) }
     }
