@@ -188,6 +188,9 @@ class PlayerViewModel(
         viewModelScope.launch {
             val previousUri = trackArtworkRepository.getTrackArtwork(trackId)?.imageUri
             trackArtworkRepository.saveTrackArtwork(trackId, imageUri)
+            if (currentTrackId == trackId) {
+                _uiState.update { it.copy(currentTrackArtworkUri = imageUri) }
+            }
             if (previousUri != null && previousUri != imageUri) {
                 releaseArtworkPermissionIfUnused(previousUri)
             }
@@ -198,6 +201,9 @@ class PlayerViewModel(
         viewModelScope.launch {
             val previousUri = trackArtworkRepository.getTrackArtwork(trackId)?.imageUri
             trackArtworkRepository.deleteTrackArtwork(trackId)
+            if (currentTrackId == trackId) {
+                _uiState.update { it.copy(currentTrackArtworkUri = null) }
+            }
             previousUri?.let { releaseArtworkPermissionIfUnused(it) }
         }
     }
@@ -207,6 +213,7 @@ class PlayerViewModel(
         viewModelScope.launch {
             val previousUri = queueArtworkRepository.getQueueArtwork(target.queueType, target.queueKey)?.imageUri
             queueArtworkRepository.saveQueueArtwork(target.queueType, target.queueKey, imageUri)
+            _uiState.update { it.copy(queueArtworkUri = imageUri) }
             if (previousUri != null && previousUri != imageUri) {
                 releaseArtworkPermissionIfUnused(previousUri)
             }
@@ -218,6 +225,7 @@ class PlayerViewModel(
         viewModelScope.launch {
             val previousUri = queueArtworkRepository.getQueueArtwork(target.queueType, target.queueKey)?.imageUri
             queueArtworkRepository.deleteQueueArtwork(target.queueType, target.queueKey)
+            _uiState.update { it.copy(queueArtworkUri = null) }
             previousUri?.let { releaseArtworkPermissionIfUnused(it) }
         }
     }
