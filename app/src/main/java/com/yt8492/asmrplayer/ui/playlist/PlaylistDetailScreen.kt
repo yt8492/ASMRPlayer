@@ -50,12 +50,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yt8492.asmrplayer.R
+import com.yt8492.asmrplayer.ui.common.SingleLineMarqueeText
 import java.util.concurrent.TimeUnit
 
 @Composable
@@ -143,10 +143,8 @@ fun PlaylistDetailScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
+                    SingleLineMarqueeText(
                         text = uiState.playlist?.name ?: stringResource(id = R.string.playlist_detail_title),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
                 },
                 navigationIcon = {
@@ -332,17 +330,13 @@ private fun ReorderableTrackList(
                     null
                 },
                 headlineContent = {
-                    Text(
+                    SingleLineMarqueeText(
                         text = track.title,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
                 },
                 supportingContent = {
-                    Text(
+                    SingleLineMarqueeText(
                         text = track.artist,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
                 },
                 trailingContent = {

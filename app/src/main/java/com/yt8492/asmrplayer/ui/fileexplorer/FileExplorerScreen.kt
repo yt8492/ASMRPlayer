@@ -74,6 +74,7 @@ import com.yt8492.asmrplayer.data.model.ImageFile
 import com.yt8492.asmrplayer.data.model.Playlist
 import com.yt8492.asmrplayer.data.model.Track
 import coil.compose.AsyncImage
+import com.yt8492.asmrplayer.ui.common.SingleLineMarqueeText
 import java.util.concurrent.TimeUnit
 
 @Composable
@@ -202,7 +203,9 @@ fun FileExplorerScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text(text = title) },
+                title = {
+                    SingleLineMarqueeText(text = title)
+                },
                 navigationIcon = {
                     if (!isRoot) {
                         IconButton(onClick = onBack) {
@@ -429,10 +432,8 @@ private fun FileExplorerList(
                     )
                 },
                 headlineContent = {
-                    Text(
+                    SingleLineMarqueeText(
                         text = directory.name,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
                 },
                 supportingContent = {
@@ -462,17 +463,13 @@ private fun FileExplorerList(
                     )
                 },
                 headlineContent = {
-                    Text(
+                    SingleLineMarqueeText(
                         text = track.title,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
                 },
                 supportingContent = {
-                    Text(
+                    SingleLineMarqueeText(
                         text = track.artist,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
                 },
                 trailingContent = {
@@ -515,10 +512,8 @@ private fun FileExplorerList(
                     )
                 },
                 headlineContent = {
-                    Text(
+                    SingleLineMarqueeText(
                         text = image.title,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
                 },
                 supportingContent = {
@@ -570,11 +565,9 @@ private fun ImagePreviewDialog(
                 .clip(MaterialTheme.shapes.large)
                 .background(MaterialTheme.colorScheme.surface),
         ) {
-            Text(
+            SingleLineMarqueeText(
                 text = image.title,
                 style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
@@ -641,10 +634,8 @@ private fun PlaylistPickerSheet(
                     ListItem(
                         modifier = Modifier.clickable { onPlaylistClick(playlist) },
                         headlineContent = {
-                            Text(
+                            SingleLineMarqueeText(
                                 text = playlist.name,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
                             )
                         },
                         supportingContent = {

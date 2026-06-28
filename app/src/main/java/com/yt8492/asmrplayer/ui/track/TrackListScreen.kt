@@ -52,7 +52,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -62,6 +61,7 @@ import com.yt8492.asmrplayer.R
 import com.yt8492.asmrplayer.data.model.Album
 import com.yt8492.asmrplayer.data.model.Playlist
 import com.yt8492.asmrplayer.data.model.Track
+import com.yt8492.asmrplayer.ui.common.SingleLineMarqueeText
 import java.util.concurrent.TimeUnit
 
 @Composable
@@ -152,7 +152,9 @@ fun TrackListScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text(text = uiState.album?.title ?: "") },
+                title = {
+                    SingleLineMarqueeText(text = uiState.album?.title ?: "")
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -295,12 +297,10 @@ private fun TrackList(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Text(
+                SingleLineMarqueeText(
                     text = album.title,
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.onBackground,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     text = stringResource(id = R.string.album_track_count, tracks.size),
@@ -332,18 +332,14 @@ private fun TrackList(
                     )
                 },
                 headlineContent = {
-                    Text(
+                    SingleLineMarqueeText(
                         text = track.title,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                         color = MaterialTheme.colorScheme.onBackground,
                     )
                 },
                 supportingContent = {
-                    Text(
+                    SingleLineMarqueeText(
                         text = track.artist,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 },
@@ -414,10 +410,8 @@ private fun PlaylistPickerSheet(
                     ListItem(
                         modifier = Modifier.clickable { onPlaylistClick(playlist) },
                         headlineContent = {
-                            Text(
+                            SingleLineMarqueeText(
                                 text = playlist.name,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
                             )
                         },
                         supportingContent = {

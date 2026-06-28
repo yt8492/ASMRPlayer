@@ -91,7 +91,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -104,6 +104,7 @@ import androidx.media3.session.SessionToken
 import coil.compose.AsyncImage
 import com.yt8492.asmrplayer.R
 import com.yt8492.asmrplayer.service.PlaybackService
+import com.yt8492.asmrplayer.ui.common.SingleLineMarqueeText
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -407,7 +408,9 @@ fun PlayerScreen(
         },
         topBar = {
             TopAppBar(
-                title = { Text(text = queueTitle) },
+                title = {
+                    SingleLineMarqueeText(text = queueTitle)
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -619,19 +622,19 @@ fun PlayerScreen(
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text(
+                    SingleLineMarqueeText(
                         text = currentTrack?.title ?: stringResource(id = R.string.player_no_track),
+                        modifier = Modifier.fillMaxWidth(),
                         style = MaterialTheme.typography.headlineSmall,
                         color = MaterialTheme.colorScheme.onBackground,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center,
                     )
-                    Text(
+                    SingleLineMarqueeText(
                         text = currentTrack?.artist ?: queueTitle,
+                        modifier = Modifier.fillMaxWidth(),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center,
                     )
                 }
 
@@ -987,17 +990,13 @@ private fun PlaybackQueueListItem(
             }
         },
         headlineContent = {
-            Text(
+            SingleLineMarqueeText(
                 text = track.title,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
         },
         supportingContent = {
-            Text(
+            SingleLineMarqueeText(
                 text = track.artist,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
         },
         trailingContent = {

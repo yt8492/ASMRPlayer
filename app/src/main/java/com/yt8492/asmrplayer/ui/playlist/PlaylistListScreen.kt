@@ -41,12 +41,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yt8492.asmrplayer.R
 import com.yt8492.asmrplayer.data.model.Playlist
+import com.yt8492.asmrplayer.ui.common.SingleLineMarqueeText
 
 @Composable
 fun PlaylistListRoute(
@@ -119,7 +119,9 @@ fun PlaylistListScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text(text = stringResource(id = R.string.playlist_list_title)) },
+                title = {
+                    SingleLineMarqueeText(text = stringResource(id = R.string.playlist_list_title))
+                },
                 actions = {
                     TextButton(onClick = onToggleEditMode) {
                         Text(
@@ -175,10 +177,8 @@ fun PlaylistListScreen(
                                 )
                             },
                             headlineContent = {
-                                Text(
+                                SingleLineMarqueeText(
                                     text = playlist.name,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
                                 )
                             },
                             supportingContent = {
