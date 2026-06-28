@@ -5,11 +5,12 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.Build
+import androidx.annotation.OptIn
 import androidx.core.app.NotificationManagerCompat
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -17,6 +18,7 @@ import androidx.media3.ui.PlayerNotificationManager
 import com.yt8492.asmrplayer.MainActivity
 import com.yt8492.asmrplayer.R
 
+@OptIn(UnstableApi::class)
 class PlaybackService : MediaSessionService() {
     private var player: ExoPlayer? = null
     private var mediaSession: MediaSession? = null
@@ -57,6 +59,7 @@ class PlaybackService : MediaSessionService() {
                         putExtra(EXTRA_ALBUM_ID, extras?.getLong(EXTRA_ALBUM_ID, -1L) ?: -1L)
                         putExtra(EXTRA_PLAYLIST_ID, extras?.getLong(EXTRA_PLAYLIST_ID, -1L) ?: -1L)
                         putExtra(EXTRA_TRACK_ID, player.currentMediaItem?.mediaId?.toLongOrNull() ?: -1L)
+                        putExtra(EXTRA_START_INDEX, player.currentMediaItemIndex)
                         putExtra(EXTRA_ALBUM_TITLE, metadata?.albumTitle?.toString().orEmpty())
                         putExtra(EXTRA_ALBUM_ART_URI, extras?.getString(EXTRA_ALBUM_ART_URI).orEmpty())
                         putExtra(EXTRA_PLAYLIST_NAME, extras?.getString(EXTRA_PLAYLIST_NAME).orEmpty())
@@ -123,7 +126,6 @@ class PlaybackService : MediaSessionService() {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val channel = NotificationChannel(
             NOTIFICATION_CHANNEL_ID,
             getString(R.string.notification_channel_name),
@@ -138,6 +140,7 @@ class PlaybackService : MediaSessionService() {
         const val EXTRA_ALBUM_ID = "com.yt8492.asmrplayer.extra.ALBUM_ID"
         const val EXTRA_PLAYLIST_ID = "com.yt8492.asmrplayer.extra.PLAYLIST_ID"
         const val EXTRA_TRACK_ID = "com.yt8492.asmrplayer.extra.TRACK_ID"
+        const val EXTRA_START_INDEX = "com.yt8492.asmrplayer.extra.START_INDEX"
         const val EXTRA_ALBUM_TITLE = "com.yt8492.asmrplayer.extra.ALBUM_TITLE"
         const val EXTRA_ALBUM_ART_URI = "com.yt8492.asmrplayer.extra.ALBUM_ART_URI"
         const val EXTRA_PLAYLIST_NAME = "com.yt8492.asmrplayer.extra.PLAYLIST_NAME"

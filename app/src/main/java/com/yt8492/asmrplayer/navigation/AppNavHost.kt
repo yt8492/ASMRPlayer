@@ -18,9 +18,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -40,7 +41,7 @@ private const val ScreenFadeDurationMillis = 120
 
 @Composable
 fun AppNavHost(
-    modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier,
+    modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
     playbackDestination: PlaybackDestination? = null,
 ) {
@@ -49,7 +50,11 @@ fun AppNavHost(
         when (destination.queueType) {
             PlaybackService.QUEUE_TYPE_PLAYLIST -> {
                 val name = Uri.encode(destination.playlistName)
-                navController.navigate("player/playlist/${destination.playlistId}/${destination.trackId}?name=$name") {
+                val startIndexQuery = destination.startIndex?.let { "&startIndex=$it" }.orEmpty()
+                navController.navigate(
+                    "player/playlist/${destination.playlistId}/${destination.trackId}" +
+                        "?name=$name&playlistTrackId=-1$startIndexQuery",
+                ) {
                     launchSingleTop = true
                 }
             }
@@ -74,8 +79,8 @@ fun AppNavHost(
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-    var fileExplorerResetRequestKey by remember { mutableStateOf(0) }
-    var playlistListResetRequestKey by remember { mutableStateOf(0) }
+    var fileExplorerResetRequestKey by remember { mutableIntStateOf(0) }
+    var playlistListResetRequestKey by remember { mutableIntStateOf(0) }
     val bottomBar: @Composable () -> Unit = {
         MainNavigationBar(
             currentRoute = currentRoute,
@@ -121,7 +126,7 @@ fun AppNavHost(
     ) {
         composable("playlist_list") {
             PlaylistListRoute(
-                modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize(),
                 bottomBar = bottomBar,
                 resetRequestKey = playlistListResetRequestKey,
                 onPlaylistClick = { playlist ->
@@ -132,7 +137,7 @@ fun AppNavHost(
         }
         composable("file_explorer") {
             FileExplorerRoute(
-                modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize(),
                 bottomBar = bottomBar,
                 resetRequestKey = fileExplorerResetRequestKey,
                 onTrackClick = { directoryPath, directoryTitle, tracks, index ->
@@ -164,7 +169,7 @@ fun AppNavHost(
                     val art = Uri.encode(albumArtUri?.toString() ?: "")
                     navController.navigate("player/album/$albumId/$trackId?title=$title&art=$art")
                 },
-                modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize(),
             )
         }
         composable(
@@ -179,13 +184,17 @@ fun AppNavHost(
             PlaylistDetailRoute(
                 playlistId = playlistId,
                 onBack = { navController.popBackStack() },
-                onTrackClick = { tracks, index ->
-                    val trackId = tracks.getOrNull(index)?.id ?: return@PlaylistDetailRoute
+                onTrackClick = { playlistTracks, index ->
+                    val playlistTrack = playlistTracks.getOrNull(index) ?: return@PlaylistDetailRoute
+                    val trackId = playlistTrack.track.id
                     val name = Uri.encode(playlistName)
-                    navController.navigate("player/playlist/$playlistId/$trackId?name=$name")
+                    navController.navigate(
+                        "player/playlist/$playlistId/$trackId?name=$name" +
+                            "&playlistTrackId=${playlistTrack.playlistTrackId}&startIndex=$index",
+                    )
                 },
                 bottomBar = bottomBar,
-                modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize(),
             )
         }
         composable(
@@ -210,28 +219,38 @@ fun AppNavHost(
                 ),
                 startTrackId = trackId,
                 onBack = { navController.popBackStack() },
-                modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize(),
             )
         }
         composable(
-            route = "player/playlist/{playlistId}/{trackId}?name={name}",
+            route = "player/playlist/{playlistId}/{trackId}?name={name}&playlistTrackId={playlistTrackId}&startIndex={startIndex}",
             arguments = listOf(
                 navArgument("playlistId") { type = NavType.LongType },
                 navArgument("trackId") { type = NavType.LongType },
                 navArgument("name") { type = NavType.StringType; defaultValue = "" },
+                navArgument("playlistTrackId") { type = NavType.LongType; defaultValue = -1L },
+                navArgument("startIndex") { type = NavType.IntType; defaultValue = -1 },
             ),
         ) { backStackEntry ->
             val playlistId = backStackEntry.arguments?.getLong("playlistId") ?: return@composable
             val trackId = backStackEntry.arguments?.getLong("trackId") ?: return@composable
             val playlistName = backStackEntry.arguments?.getString("name").orEmpty()
+            val playlistTrackId = backStackEntry.arguments
+                ?.getLong("playlistTrackId")
+                ?.takeIf { it >= 0 }
+            val startIndex = backStackEntry.arguments
+                ?.getInt("startIndex")
+                ?.takeIf { it >= 0 }
             PlayerRoute(
                 queue = PlaybackQueue.Playlist(
                     playlistId = playlistId,
                     playlistName = playlistName,
                 ),
                 startTrackId = trackId,
+                startPlaylistTrackId = playlistTrackId,
+                startIndexHint = startIndex,
                 onBack = { navController.popBackStack() },
-                modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize(),
             )
         }
         composable(
@@ -252,7 +271,7 @@ fun AppNavHost(
                 ),
                 startTrackId = trackId,
                 onBack = { navController.popBackStack() },
-                modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize(),
             )
         }
     }

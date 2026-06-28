@@ -1,5 +1,6 @@
 package com.yt8492.asmrplayer.ui.player
 
+import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -7,6 +8,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.yt8492.asmrplayer.data.local.AppDatabase
+import com.yt8492.asmrplayer.data.model.PlaylistTrack
+import com.yt8492.asmrplayer.data.model.Track
 import com.yt8492.asmrplayer.data.repository.PlaylistRepository
 import com.yt8492.asmrplayer.data.repository.PlaylistRepositoryImpl
 import com.yt8492.asmrplayer.data.repository.QueueArtworkRepository
@@ -26,15 +29,18 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class PlayerViewModel(
-    private val context: Context,
+    context: Context,
     private val queue: PlaybackQueue,
     private val startTrackId: Long,
+    private val startPlaylistTrackId: Long?,
+    private val startIndexHint: Int?,
     private val trackRepository: TrackRepository,
     private val playlistRepository: PlaylistRepository,
     private val trackLoopRepository: TrackLoopRepository,
     private val trackArtworkRepository: TrackArtworkRepository,
     private val queueArtworkRepository: QueueArtworkRepository,
 ) : ViewModel() {
+    private val contentResolver: ContentResolver = context.applicationContext.contentResolver
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
     private var currentTrackLoopJob: Job? = null
@@ -52,20 +58,51 @@ class PlayerViewModel(
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             runCatching {
                 when (val currentQueue = queue) {
-                    is PlaybackQueue.Album -> trackRepository.getTracks(currentQueue.albumId)
-                    is PlaybackQueue.Folder -> trackRepository.getTracksInDirectory(currentQueue.directoryPath)
+                    is PlaybackQueue.Album -> {
+                        val tracks = trackRepository.getTracks(currentQueue.albumId)
+                        LoadedTracks(
+                            tracks = tracks,
+                            startIndex = resolvePlaybackStartIndex(
+                                tracks = tracks,
+                                startTrackId = startTrackId,
+                                startIndexHint = startIndexHint,
+                            ),
+                        )
+                    }
+
+                    is PlaybackQueue.Folder -> {
+                        val tracks = trackRepository.getTracksInDirectory(currentQueue.directoryPath)
+                        LoadedTracks(
+                            tracks = tracks,
+                            startIndex = resolvePlaybackStartIndex(
+                                tracks = tracks,
+                                startTrackId = startTrackId,
+                                startIndexHint = startIndexHint,
+                            ),
+                        )
+                    }
+
                     is PlaybackQueue.Playlist -> {
-                        val trackIds = playlistRepository.getTrackIds(currentQueue.playlistId)
-                        trackRepository.getTracks(trackIds)
+                        val playlistTracks = playlistRepository.getPlaylistTracks(currentQueue.playlistId)
+                        val tracks = trackRepository.getTracks(playlistTracks.map { it.trackId })
+                        LoadedTracks(
+                            tracks = tracks,
+                            startIndex = resolvePlaylistPlaybackStartIndex(
+                                tracks = tracks,
+                                playlistTracks = playlistTracks,
+                                startTrackId = startTrackId,
+                                startPlaylistTrackId = startPlaylistTrackId,
+                                startIndexHint = startIndexHint,
+                            ),
+                        )
                     }
                 }
-            }.onSuccess { tracks ->
-                val startIndex = tracks.indexOfFirst { it.id == startTrackId }.takeIf { it >= 0 } ?: 0
+            }.onSuccess { loadedTracks ->
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        tracks = tracks,
-                        startIndex = startIndex,
+                        tracks = loadedTracks.tracks,
+                        startIndex = loadedTracks.startIndex,
                     )
                 }
             }.onFailure {
@@ -171,7 +208,7 @@ class PlayerViewModel(
             queueArtworkRepository.isImageUriUsed(imageUri)
         if (isUsed) return
         runCatching {
-            context.contentResolver.releasePersistableUriPermission(
+            contentResolver.releasePersistableUriPermission(
                 imageUri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION,
             )
@@ -187,7 +224,13 @@ class PlayerViewModel(
     }
 
     companion object {
-        fun provideFactory(context: Context, queue: PlaybackQueue, startTrackId: Long): ViewModelProvider.Factory {
+        fun provideFactory(
+            context: Context,
+            queue: PlaybackQueue,
+            startTrackId: Long,
+            startPlaylistTrackId: Long? = null,
+            startIndexHint: Int? = null,
+        ): ViewModelProvider.Factory {
             val applicationContext = context.applicationContext
             return object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -210,6 +253,8 @@ class PlayerViewModel(
                         context = applicationContext,
                         queue = queue,
                         startTrackId = startTrackId,
+                        startPlaylistTrackId = startPlaylistTrackId,
+                        startIndexHint = startIndexHint,
                         trackRepository = trackRepository,
                         playlistRepository = playlistRepository,
                         trackLoopRepository = trackLoopRepository,
@@ -230,3 +275,67 @@ private data class QueueArtworkTarget(
     val queueType: String,
     val queueKey: String,
 )
+
+private data class LoadedTracks(
+    val tracks: List<Track>,
+    val startIndex: Int,
+)
+
+internal fun resolvePlaybackStartIndex(
+    tracks: List<Track>,
+    startTrackId: Long,
+    startIndexHint: Int?,
+): Int {
+    return resolvePlaybackStartIndexByTrackIds(
+        trackIds = tracks.map { it.id },
+        startTrackId = startTrackId,
+        startIndexHint = startIndexHint,
+    )
+}
+
+internal fun resolvePlaybackStartIndexByTrackIds(
+    trackIds: List<Long>,
+    startTrackId: Long,
+    startIndexHint: Int?,
+): Int {
+    return startIndexHint
+        ?.takeIf { it in trackIds.indices && trackIds[it] == startTrackId }
+        ?: trackIds.indexOfFirst { it == startTrackId }.takeIf { it >= 0 }
+        ?: 0
+}
+
+internal fun resolvePlaylistPlaybackStartIndex(
+    tracks: List<Track>,
+    playlistTracks: List<PlaylistTrack>,
+    startTrackId: Long,
+    startPlaylistTrackId: Long?,
+    startIndexHint: Int?,
+): Int {
+    return resolvePlaylistPlaybackStartIndexByTrackIds(
+        trackIds = tracks.map { it.id },
+        playlistTracks = playlistTracks,
+        startTrackId = startTrackId,
+        startPlaylistTrackId = startPlaylistTrackId,
+        startIndexHint = startIndexHint,
+    )
+}
+
+internal fun resolvePlaylistPlaybackStartIndexByTrackIds(
+    trackIds: List<Long>,
+    playlistTracks: List<PlaylistTrack>,
+    startTrackId: Long,
+    startPlaylistTrackId: Long?,
+    startIndexHint: Int?,
+): Int {
+    val availableTrackIds = trackIds.toSet()
+    val availablePlaylistTracks = playlistTracks.filter { it.trackId in availableTrackIds }
+    val playlistTrackIndex = startPlaylistTrackId
+        ?.let { targetId -> availablePlaylistTracks.indexOfFirst { it.id == targetId } }
+        ?.takeIf { it >= 0 }
+
+    return playlistTrackIndex ?: resolvePlaybackStartIndexByTrackIds(
+        trackIds = trackIds,
+        startTrackId = startTrackId,
+        startIndexHint = startIndexHint,
+    )
+}

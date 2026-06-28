@@ -56,14 +56,13 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yt8492.asmrplayer.R
-import com.yt8492.asmrplayer.data.model.Track
 import java.util.concurrent.TimeUnit
 
 @Composable
 fun PlaylistDetailRoute(
     playlistId: Long,
     onBack: () -> Unit,
-    onTrackClick: (tracks: List<Track>, index: Int) -> Unit,
+    onTrackClick: (playlistTracks: List<PlaylistTrackItem>, index: Int) -> Unit,
     modifier: Modifier = Modifier,
     bottomBar: @Composable () -> Unit = {},
     viewModel: PlaylistDetailViewModel = viewModel(
@@ -101,7 +100,7 @@ fun PlaylistDetailRoute(
         hasPermission = hasPermission,
         onRequestPermission = { permissionLauncher.launch(permission) },
         onBack = onBack,
-        onTrackClick = { index -> onTrackClick(uiState.tracks, index) },
+        onTrackClick = { index -> onTrackClick(uiState.playlistTracks, index) },
         onRenamePlaylist = viewModel::renamePlaylist,
         onRemoveTrack = viewModel::removeTrack,
         onMoveTrack = viewModel::moveTrack,

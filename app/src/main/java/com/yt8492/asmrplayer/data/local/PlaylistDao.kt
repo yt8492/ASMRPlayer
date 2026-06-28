@@ -36,6 +36,9 @@ interface PlaylistDao {
     @Query("SELECT * FROM playlist_tracks WHERE playlistId = :playlistId ORDER BY position ASC")
     fun observePlaylistTracks(playlistId: Long): Flow<List<PlaylistTrackEntity>>
 
+    @Query("SELECT * FROM playlist_tracks WHERE playlistId = :playlistId ORDER BY position ASC")
+    suspend fun getPlaylistTracks(playlistId: Long): List<PlaylistTrackEntity>
+
     @Query("SELECT trackId FROM playlist_tracks WHERE playlistId = :playlistId ORDER BY position ASC")
     suspend fun getTrackIds(playlistId: Long): List<Long>
 

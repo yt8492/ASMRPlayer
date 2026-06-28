@@ -7,6 +7,7 @@ data class PlaybackDestination(
     val albumId: Long,
     val playlistId: Long,
     val trackId: Long,
+    val startIndex: Int?,
     val albumTitle: String,
     val albumArtUri: Uri?,
     val playlistName: String,

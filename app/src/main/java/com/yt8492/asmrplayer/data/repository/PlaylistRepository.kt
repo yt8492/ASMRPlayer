@@ -8,6 +8,7 @@ interface PlaylistRepository {
     fun observePlaylists(): Flow<List<Playlist>>
     fun observePlaylistTracks(playlistId: Long): Flow<List<PlaylistTrack>>
     suspend fun getPlaylist(playlistId: Long): Playlist?
+    suspend fun getPlaylistTracks(playlistId: Long): List<PlaylistTrack>
     suspend fun getTrackIds(playlistId: Long): List<Long>
     suspend fun createPlaylist(name: String): Long
     suspend fun renamePlaylist(playlistId: Long, name: String)

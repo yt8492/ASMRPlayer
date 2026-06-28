@@ -37,6 +37,10 @@ class PlaylistRepositoryImpl(
         )
     }
 
+    override suspend fun getPlaylistTracks(playlistId: Long): List<PlaylistTrack> = withContext(Dispatchers.IO) {
+        playlistDao.getPlaylistTracks(playlistId).map { it.toModel() }
+    }
+
     override suspend fun getTrackIds(playlistId: Long): List<Long> = withContext(Dispatchers.IO) {
         playlistDao.getTrackIds(playlistId)
     }

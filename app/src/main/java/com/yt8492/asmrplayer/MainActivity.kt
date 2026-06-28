@@ -43,6 +43,7 @@ class MainActivity : ComponentActivity() {
         val albumId = getLongExtra(PlaybackService.EXTRA_ALBUM_ID, -1L)
         val playlistId = getLongExtra(PlaybackService.EXTRA_PLAYLIST_ID, -1L)
         val trackId = getLongExtra(PlaybackService.EXTRA_TRACK_ID, -1L).takeIf { it >= 0 } ?: return null
+        val startIndex = getIntExtra(PlaybackService.EXTRA_START_INDEX, -1).takeIf { it >= 0 }
         val albumTitle = getStringExtra(PlaybackService.EXTRA_ALBUM_TITLE).orEmpty()
         val albumArtUri = getStringExtra(PlaybackService.EXTRA_ALBUM_ART_URI)
             ?.takeIf { it.isNotEmpty() }
@@ -57,6 +58,7 @@ class MainActivity : ComponentActivity() {
             albumId = albumId,
             playlistId = playlistId,
             trackId = trackId,
+            startIndex = startIndex,
             albumTitle = albumTitle,
             albumArtUri = albumArtUri,
             playlistName = playlistName,

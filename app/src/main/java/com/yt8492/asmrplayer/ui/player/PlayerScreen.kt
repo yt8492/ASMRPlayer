@@ -1,14 +1,10 @@
 package com.yt8492.asmrplayer.ui.player
 
 import android.content.ComponentName
-import android.content.ContentUris
 import android.content.Intent
 import android.graphics.Paint
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.provider.MediaStore
-import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -98,10 +94,18 @@ import kotlinx.coroutines.delay
 fun PlayerRoute(
     queue: PlaybackQueue,
     startTrackId: Long,
+    startPlaylistTrackId: Long? = null,
+    startIndexHint: Int? = null,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PlayerViewModel = viewModel(
-        factory = PlayerViewModel.provideFactory(LocalContext.current, queue, startTrackId),
+        factory = PlayerViewModel.provideFactory(
+            context = LocalContext.current,
+            queue = queue,
+            startTrackId = startTrackId,
+            startPlaylistTrackId = startPlaylistTrackId,
+            startIndexHint = startIndexHint,
+        ),
     ),
 ) {
     val context = LocalContext.current
@@ -145,7 +149,7 @@ fun PlayerRoute(
         }
         val startIndex = uiState.startIndex.takeIf { it in uiState.tracks.indices } ?: 0
         if (currentMediaIds == mediaIds) {
-            if (ctl.currentMediaItem?.mediaId != startTrackId.toString()) {
+            if (ctl.currentMediaItem?.mediaId != startTrackId.toString() || ctl.currentMediaItemIndex != startIndex) {
                 ctl.seekTo(startIndex, 0)
                 ctl.play()
             }
@@ -536,7 +540,6 @@ fun PlayerScreen(
             ) {
                 val customArtworkUri = uiState.currentTrackArtworkUri ?: uiState.queueArtworkUri
                 AlbumArt(
-                    albumId = if (customArtworkUri == null) currentTrack?.albumId else null,
                     albumArtUri = customArtworkUri ?: currentTrack?.albumArtUri ?: fallbackAlbumArtUri,
                     contentDescription = currentTrack?.albumTitle ?: queueTitle,
                     modifier = Modifier.fillMaxWidth(),
@@ -968,41 +971,21 @@ private fun SeekFeedbackBadge(
 
 @Composable
 private fun AlbumArt(
-    albumId: Long?,
     albumArtUri: Uri?,
     contentDescription: String?,
     modifier: Modifier = Modifier,
 ) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && albumId != null) {
-        val context = LocalContext.current
-        val uri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, albumId)
-        val bitmap = runCatching {
-            context.contentResolver.loadThumbnail(uri, Size(1024, 1024), null)
-        }.getOrNull()
-        AsyncImage(
-            model = bitmap,
-            contentDescription = contentDescription,
-            modifier = modifier
-                .aspectRatio(1f)
-                .clip(MaterialTheme.shapes.large),
-            contentScale = ContentScale.Fit,
-            placeholder = rememberVectorPainter(Icons.Filled.Album),
-            error = rememberVectorPainter(Icons.Filled.Album),
-            fallback = rememberVectorPainter(Icons.Filled.Album),
-        )
-    } else {
-        AsyncImage(
-            model = albumArtUri,
-            contentDescription = contentDescription,
-            modifier = modifier
-                .aspectRatio(1f)
-                .clip(MaterialTheme.shapes.large),
-            contentScale = ContentScale.Fit,
-            placeholder = rememberVectorPainter(Icons.Filled.Album),
-            error = rememberVectorPainter(Icons.Filled.Album),
-            fallback = rememberVectorPainter(Icons.Filled.Album),
-        )
-    }
+    AsyncImage(
+        model = albumArtUri,
+        contentDescription = contentDescription,
+        modifier = modifier
+            .aspectRatio(1f)
+            .clip(MaterialTheme.shapes.large),
+        contentScale = ContentScale.Fit,
+        placeholder = rememberVectorPainter(Icons.Filled.Album),
+        error = rememberVectorPainter(Icons.Filled.Album),
+        fallback = rememberVectorPainter(Icons.Filled.Album),
+    )
 }
 
 private fun formatDuration(durationMs: Long): String {
