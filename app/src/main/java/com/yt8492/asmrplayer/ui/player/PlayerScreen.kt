@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -567,7 +568,7 @@ fun PlayerScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp, vertical = 18.dp),
+                    .padding(start = 24.dp, top = 18.dp, end = 24.dp, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -773,6 +774,16 @@ fun PlayerScreen(
                 }
             }
 
+            if (!isQueueSheetVisible) {
+                PlaybackQueueSheetHandle(
+                    onClick = { isQueueSheetVisible = true },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(bottom = 18.dp),
+                )
+            }
+
             seekFeedback?.let { feedback ->
                 SeekFeedbackBadge(
                     feedback = feedback,
@@ -806,6 +817,43 @@ fun PlayerScreen(
                     onMoveQueueItem(fromIndex, toIndex)
                 }
             },
+        )
+    }
+}
+
+@Composable
+private fun PlaybackQueueSheetHandle(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val queueLabel = stringResource(id = R.string.player_queue)
+
+    Column(
+        modifier = modifier
+            .clip(MaterialTheme.shapes.small)
+            .clickable(
+                role = Role.Button,
+                onClick = onClick,
+            )
+            .semantics {
+                contentDescription = queueLabel
+            }
+            .padding(horizontal = 32.dp, vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .width(48.dp)
+                .height(4.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)),
+        )
+        Text(
+            text = queueLabel,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
         )
     }
 }
