@@ -12,6 +12,7 @@ import com.yt8492.asmrplayer.data.model.PlaylistTrack
 import com.yt8492.asmrplayer.data.model.Track
 import com.yt8492.asmrplayer.data.repository.PlaylistRepository
 import com.yt8492.asmrplayer.data.repository.PlaylistRepositoryImpl
+import com.yt8492.asmrplayer.data.repository.PlaylistTrackOrder
 import com.yt8492.asmrplayer.data.repository.QueueArtworkRepository
 import com.yt8492.asmrplayer.data.repository.QueueArtworkRepositoryImpl
 import com.yt8492.asmrplayer.data.repository.TrackArtworkRepository
@@ -61,7 +62,9 @@ class PlayerViewModel(
                     is PlaybackQueue.Album -> {
                         val tracks = trackRepository.getTracks(currentQueue.albumId)
                         LoadedTracks(
-                            tracks = tracks,
+                            queueItems = tracks.map { track ->
+                                PlayerQueueItem(queueItemId = track.id, track = track)
+                            },
                             startIndex = resolvePlaybackStartIndex(
                                 tracks = tracks,
                                 startTrackId = startTrackId,
@@ -73,7 +76,9 @@ class PlayerViewModel(
                     is PlaybackQueue.Folder -> {
                         val tracks = trackRepository.getTracksInDirectory(currentQueue.directoryPath)
                         LoadedTracks(
-                            tracks = tracks,
+                            queueItems = tracks.map { track ->
+                                PlayerQueueItem(queueItemId = track.id, track = track)
+                            },
                             startIndex = resolvePlaybackStartIndex(
                                 tracks = tracks,
                                 startTrackId = startTrackId,
@@ -85,10 +90,16 @@ class PlayerViewModel(
                     is PlaybackQueue.Playlist -> {
                         val playlistTracks = playlistRepository.getPlaylistTracks(currentQueue.playlistId)
                         val tracks = trackRepository.getTracks(playlistTracks.map { it.trackId })
+                        val tracksById = tracks.associateBy { it.id }
+                        val queueItems = playlistTracks.mapNotNull { playlistTrack ->
+                            tracksById[playlistTrack.trackId]?.let { track ->
+                                PlayerQueueItem(queueItemId = playlistTrack.id, track = track)
+                            }
+                        }
                         LoadedTracks(
-                            tracks = tracks,
+                            queueItems = queueItems,
                             startIndex = resolvePlaylistPlaybackStartIndex(
-                                tracks = tracks,
+                                tracks = queueItems.map { it.track },
                                 playlistTracks = playlistTracks,
                                 startTrackId = startTrackId,
                                 startPlaylistTrackId = startPlaylistTrackId,
@@ -101,7 +112,8 @@ class PlayerViewModel(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        tracks = loadedTracks.tracks,
+                        queueItems = loadedTracks.queueItems,
+                        tracks = loadedTracks.queueItems.map { queueItem -> queueItem.track },
                         startIndex = loadedTracks.startIndex,
                     )
                 }
@@ -112,6 +124,27 @@ class PlayerViewModel(
                         errorMessage = "トラックの取得に失敗しました",
                     )
                 }
+            }
+        }
+    }
+
+    fun moveQueueItem(fromIndex: Int, toIndex: Int) {
+        _uiState.update { currentState ->
+            val currentQueueItems = currentState.queueItems
+            val movedQueueItemIds = PlaylistTrackOrder.move(
+                itemIds = currentQueueItems.map { it.queueItemId },
+                fromIndex = fromIndex,
+                toIndex = toIndex,
+            )
+            if (movedQueueItemIds == currentQueueItems.map { it.queueItemId }) {
+                currentState
+            } else {
+                val queueItemsById = currentQueueItems.associateBy { it.queueItemId }
+                val movedQueueItems = movedQueueItemIds.mapNotNull { queueItemsById[it] }
+                currentState.copy(
+                    queueItems = movedQueueItems,
+                    tracks = movedQueueItems.map { queueItem -> queueItem.track },
+                )
             }
         }
     }
@@ -277,7 +310,7 @@ private data class QueueArtworkTarget(
 )
 
 private data class LoadedTracks(
-    val tracks: List<Track>,
+    val queueItems: List<PlayerQueueItem>,
     val startIndex: Int,
 )
 

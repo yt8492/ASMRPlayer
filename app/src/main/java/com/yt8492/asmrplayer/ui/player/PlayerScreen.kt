@@ -11,6 +11,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,13 +25,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -41,9 +47,13 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -53,15 +63,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.nativeCanvas
@@ -70,6 +84,7 @@ import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -119,6 +134,7 @@ fun PlayerRoute(
     val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
     var controller by remember { mutableStateOf<MediaController?>(null) }
     var controllerError by remember { mutableStateOf(false) }
+    var isInitialQueuePrepared by rememberSaveable { mutableStateOf(false) }
 
     DisposableEffect(controllerFuture) {
         controllerFuture.addListener(
@@ -139,24 +155,28 @@ fun PlayerRoute(
         }
     }
 
-    LaunchedEffect(controller, uiState.tracks, uiState.startIndex) {
+    LaunchedEffect(controller, uiState.queueItems, uiState.startIndex, isInitialQueuePrepared) {
         val ctl = controller ?: return@LaunchedEffect
-        if (uiState.tracks.isEmpty()) return@LaunchedEffect
+        if (uiState.queueItems.isEmpty()) return@LaunchedEffect
+        val shouldPrepareInitialQueue = !isInitialQueuePrepared || ctl.mediaItemCount == 0
+        if (!shouldPrepareInitialQueue) return@LaunchedEffect
         val queueTitle = queue.title
-        val mediaIds = uiState.tracks.map { it.id.toString() }
+        val mediaIds = uiState.queueItems.map { it.track.id.toString() }
         val currentMediaIds = List(ctl.mediaItemCount) { index ->
             ctl.getMediaItemAt(index).mediaId
         }
-        val startIndex = uiState.startIndex.takeIf { it in uiState.tracks.indices } ?: 0
+        val startIndex = uiState.startIndex.takeIf { it in uiState.queueItems.indices } ?: 0
         if (currentMediaIds == mediaIds) {
             if (ctl.currentMediaItem?.mediaId != startTrackId.toString() || ctl.currentMediaItemIndex != startIndex) {
                 ctl.seekTo(startIndex, 0)
                 ctl.play()
             }
+            isInitialQueuePrepared = true
             return@LaunchedEffect
         }
 
-        val mediaItems = uiState.tracks.map { track ->
+        val mediaItems = uiState.queueItems.map { queueItem ->
+            val track = queueItem.track
             val trackAlbumTitle = track.albumTitle.ifEmpty { queueTitle }
             MediaItem.Builder()
                 .setUri(track.uri)
@@ -199,6 +219,7 @@ fun PlayerRoute(
         ctl.seekTo(startIndex, 0)
         ctl.prepare()
         ctl.playWhenReady = true
+        isInitialQueuePrepared = true
     }
 
     if (controllerError) {
@@ -230,6 +251,7 @@ fun PlayerRoute(
             onDeleteTrackArtwork = viewModel::deleteTrackArtwork,
             onSaveQueueArtwork = viewModel::saveQueueArtwork,
             onDeleteQueueArtwork = viewModel::deleteQueueArtwork,
+            onMoveQueueItem = viewModel::moveQueueItem,
             modifier = modifier,
         )
     }
@@ -251,6 +273,7 @@ fun PlayerScreen(
     onDeleteTrackArtwork: (trackId: Long) -> Unit,
     onSaveQueueArtwork: (imageUri: Uri) -> Unit,
     onDeleteQueueArtwork: () -> Unit,
+    onMoveQueueItem: (fromIndex: Int, toIndex: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -265,6 +288,7 @@ fun PlayerScreen(
     var loopEndMs by remember { mutableStateOf<Long?>(null) }
     var isLooping by remember { mutableStateOf(false) }
     var repeatMode by remember { mutableIntStateOf(player.repeatMode) }
+    var isQueueSheetVisible by remember { mutableStateOf(false) }
 
     DisposableEffect(player) {
         val listener = object : Player.Listener {
@@ -303,7 +327,7 @@ fun PlayerScreen(
         }
     }
 
-    val currentTrack = uiState.tracks.getOrNull(currentIndex)
+    val currentTrack = uiState.queueItems.getOrNull(currentIndex)?.track
     val currentTrackId = currentTrack?.id
     var artworkPickerTarget by remember { mutableStateOf<ArtworkPickerTarget?>(null) }
     var artworkMenuExpanded by remember { mutableStateOf(false) }
@@ -361,6 +385,15 @@ fun PlayerScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = { isQueueSheetVisible = true },
+                        enabled = uiState.queueItems.isNotEmpty(),
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                            contentDescription = stringResource(id = R.string.player_queue),
+                        )
+                    }
                     currentTrackId?.let { trackId ->
                         IconButton(
                             onClick = { artworkMenuExpanded = true },
@@ -486,7 +519,7 @@ fun PlayerScreen(
                 return@Scaffold
             }
 
-            uiState.tracks.isEmpty() -> {
+            uiState.queueItems.isEmpty() -> {
                 Box(
                     modifier = Modifier
                         .padding(innerPadding)
@@ -750,6 +783,198 @@ fun PlayerScreen(
             }
         }
     }
+
+    if (isQueueSheetVisible) {
+        PlaybackQueueSheet(
+            queueItems = uiState.queueItems,
+            currentIndex = currentIndex,
+            canChangeQueue = player.isCommandAvailable(Player.COMMAND_CHANGE_MEDIA_ITEMS),
+            onDismiss = { isQueueSheetVisible = false },
+            onQueueItemClick = { index ->
+                if (index != currentIndex && index in uiState.queueItems.indices) {
+                    player.seekTo(index, 0)
+                    player.play()
+                    currentIndex = player.currentMediaItemIndex
+                    positionMs = player.currentPosition.coerceAtLeast(0L)
+                }
+                isQueueSheetVisible = false
+            },
+            onMoveQueueItem = { fromIndex, toIndex ->
+                if (player.isCommandAvailable(Player.COMMAND_CHANGE_MEDIA_ITEMS)) {
+                    player.moveMediaItem(fromIndex, toIndex)
+                    currentIndex = player.currentMediaItemIndex
+                    onMoveQueueItem(fromIndex, toIndex)
+                }
+            },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PlaybackQueueSheet(
+    queueItems: List<PlayerQueueItem>,
+    currentIndex: Int,
+    canChangeQueue: Boolean,
+    onDismiss: () -> Unit,
+    onQueueItemClick: (Int) -> Unit,
+    onMoveQueueItem: (fromIndex: Int, toIndex: Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        modifier = modifier,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(id = R.string.player_queue),
+                modifier = Modifier.padding(horizontal = 24.dp),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = stringResource(id = R.string.player_queue_count, queueItems.size),
+                modifier = Modifier.padding(horizontal = 24.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                itemsIndexed(
+                    items = queueItems,
+                    key = { _, queueItem -> queueItem.queueItemId },
+                ) { index, queueItem ->
+                    PlaybackQueueListItem(
+                        queueItem = queueItem,
+                        index = index,
+                        isCurrent = index == currentIndex,
+                        canChangeQueue = canChangeQueue,
+                        onClick = { onQueueItemClick(index) },
+                        onMoveQueueItem = onMoveQueueItem,
+                        lastIndex = queueItems.lastIndex,
+                    )
+                    HorizontalDivider()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaybackQueueListItem(
+    queueItem: PlayerQueueItem,
+    index: Int,
+    isCurrent: Boolean,
+    canChangeQueue: Boolean,
+    onClick: () -> Unit,
+    onMoveQueueItem: (fromIndex: Int, toIndex: Int) -> Unit,
+    lastIndex: Int,
+    modifier: Modifier = Modifier,
+) {
+    var currentIndex by remember(queueItem.queueItemId) { mutableIntStateOf(index) }
+    var draggingQueueItemId by remember { mutableStateOf<Long?>(null) }
+    var draggingOffset by remember { mutableFloatStateOf(0f) }
+    val latestLastIndex by rememberUpdatedState(lastIndex)
+    val itemHeightPx = with(LocalDensity.current) { 72.dp.toPx() }
+    val track = queueItem.track
+
+    ListItem(
+        modifier = modifier
+            .graphicsLayer {
+                translationY = if (draggingQueueItemId == queueItem.queueItemId) {
+                    draggingOffset
+                } else {
+                    0f
+                }
+            }
+            .clickable(onClick = onClick),
+        colors = ListItemDefaults.colors(
+            containerColor = if (isCurrent) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surface
+            },
+            headlineColor = if (isCurrent) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+            supportingColor = if (isCurrent) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        ),
+        leadingContent = {
+            if (canChangeQueue) {
+                Icon(
+                    imageVector = Icons.Filled.DragHandle,
+                    contentDescription = stringResource(id = R.string.player_queue_reorder),
+                    modifier = Modifier.pointerInput(queueItem.queueItemId) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                draggingQueueItemId = queueItem.queueItemId
+                                draggingOffset = 0f
+                                currentIndex = index
+                            },
+                            onDragEnd = {
+                                draggingQueueItemId = null
+                                draggingOffset = 0f
+                            },
+                            onDragCancel = {
+                                draggingQueueItemId = null
+                                draggingOffset = 0f
+                            },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                draggingOffset += dragAmount.y
+                                while (draggingOffset > itemHeightPx && currentIndex < latestLastIndex) {
+                                    onMoveQueueItem(currentIndex, currentIndex + 1)
+                                    currentIndex += 1
+                                    draggingOffset -= itemHeightPx
+                                }
+                                while (draggingOffset < -itemHeightPx && currentIndex > 0) {
+                                    onMoveQueueItem(currentIndex, currentIndex - 1)
+                                    currentIndex -= 1
+                                    draggingOffset += itemHeightPx
+                                }
+                            },
+                        )
+                    },
+                )
+            }
+        },
+        headlineContent = {
+            Text(
+                text = track.title,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+        supportingContent = {
+            Text(
+                text = track.artist,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+        trailingContent = {
+            Text(
+                text = if (isCurrent) {
+                    stringResource(id = R.string.player_queue_current)
+                } else {
+                    formatDuration(track.durationMs)
+                },
+                style = MaterialTheme.typography.labelMedium,
+            )
+        },
+    )
 }
 
 @Composable

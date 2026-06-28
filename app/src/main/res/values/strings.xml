@@ -13,6 +13,10 @@
     <string name="player_pause">一時停止</string>
     <string name="player_prev">前の曲</string>
     <string name="player_next">次の曲</string>
+    <string name="player_queue">再生キュー</string>
+    <string name="player_queue_count">%1$d曲</string>
+    <string name="player_queue_current">再生中</string>
+    <string name="player_queue_reorder">キューを並べ替え</string>
     <string name="player_repeat_off">ループしない</string>
     <string name="player_repeat_one">現在のトラックをループ</string>
     <string name="player_repeat_all">現在のキューをループ</string>
