@@ -7,7 +7,7 @@ class PlaylistTrackOrderTest {
     @Test
     fun move_後ろへ移動すると順序が入れ替わる() {
         val result = PlaylistTrackOrder.move(
-            trackIds = listOf(1L, 2L, 3L, 4L),
+            itemIds = listOf(1L, 2L, 3L, 4L),
             fromIndex = 1,
             toIndex = 3,
         )
@@ -18,7 +18,7 @@ class PlaylistTrackOrderTest {
     @Test
     fun move_前へ移動すると順序が入れ替わる() {
         val result = PlaylistTrackOrder.move(
-            trackIds = listOf(1L, 2L, 3L, 4L),
+            itemIds = listOf(1L, 2L, 3L, 4L),
             fromIndex = 3,
             toIndex = 1,
         )
@@ -28,19 +28,20 @@ class PlaylistTrackOrderTest {
 
     @Test
     fun move_範囲外なら元の順序を返す() {
-        val trackIds = listOf(1L, 2L, 3L)
+        val itemIds = listOf(1L, 2L, 3L)
 
-        assertEquals(trackIds, PlaylistTrackOrder.move(trackIds, fromIndex = -1, toIndex = 1))
-        assertEquals(trackIds, PlaylistTrackOrder.move(trackIds, fromIndex = 0, toIndex = 3))
+        assertEquals(itemIds, PlaylistTrackOrder.move(itemIds, fromIndex = -1, toIndex = 1))
+        assertEquals(itemIds, PlaylistTrackOrder.move(itemIds, fromIndex = 0, toIndex = 3))
     }
 
     @Test
-    fun remove_指定したトラックを取り除く() {
-        val result = PlaylistTrackOrder.remove(
-            trackIds = listOf(1L, 2L, 3L),
-            trackId = 2L,
+    fun move_同じトラックID相当の項目でも項目IDで順序を維持する() {
+        val result = PlaylistTrackOrder.move(
+            itemIds = listOf(10L, 11L, 12L),
+            fromIndex = 0,
+            toIndex = 2,
         )
 
-        assertEquals(listOf(1L, 3L), result)
+        assertEquals(listOf(11L, 12L, 10L), result)
     }
 }

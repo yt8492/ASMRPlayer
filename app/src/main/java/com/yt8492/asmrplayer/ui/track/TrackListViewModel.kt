@@ -76,7 +76,6 @@ class TrackListViewModel(
             }.onSuccess { result ->
                 val message = when (result) {
                     AddTrackResult.Added -> "プレイリストに追加しました"
-                    AddTrackResult.AlreadyExists -> "このトラックは既に追加されています"
                 }
                 _uiState.update { it.copy(playlistMessage = message) }
             }.onFailure {

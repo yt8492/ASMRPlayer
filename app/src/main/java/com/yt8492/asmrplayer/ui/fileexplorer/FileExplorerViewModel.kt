@@ -95,7 +95,6 @@ class FileExplorerViewModel(
             }.onSuccess { result ->
                 val message = when (result) {
                     AddTrackResult.Added -> "プレイリストに追加しました"
-                    AddTrackResult.AlreadyExists -> "このトラックは既に追加されています"
                 }
                 _uiState.update { it.copy(playlistMessage = message) }
             }.onFailure {
@@ -160,7 +159,6 @@ class FileExplorerViewModel(
             }.onSuccess { result ->
                 val message = when {
                     result == null -> "このフォルダに追加できる音声ファイルがありません"
-                    result.addedCount == 0 -> "このフォルダのトラックは既に追加されています"
                     else -> "プレイリストに${result.addedCount}曲追加しました"
                 }
                 _uiState.update { it.copy(playlistMessage = message) }

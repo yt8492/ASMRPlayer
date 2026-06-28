@@ -193,14 +193,14 @@ fun PlaylistDetailScreen(
 
                 uiState.isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
 
-                uiState.tracks.isEmpty() -> Text(
+                uiState.playlistTracks.isEmpty() -> Text(
                     text = stringResource(id = R.string.playlist_detail_empty),
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.align(Alignment.Center),
                 )
 
                 else -> ReorderableTrackList(
-                    tracks = uiState.tracks,
+                    playlistTracks = uiState.playlistTracks,
                     isEditMode = uiState.isEditMode,
                     onTrackClick = onTrackClick,
                     onRemoveTrack = onRemoveTrack,
@@ -254,7 +254,7 @@ private fun PermissionRequest(
 
 @Composable
 private fun ReorderableTrackList(
-    tracks: List<Track>,
+    playlistTracks: List<PlaylistTrackItem>,
     isEditMode: Boolean,
     onTrackClick: (Int) -> Unit,
     onRemoveTrack: (Long) -> Unit,
@@ -262,21 +262,26 @@ private fun ReorderableTrackList(
     onDragFinished: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var draggingTrackId by remember { mutableStateOf<Long?>(null) }
+    var draggingPlaylistTrackId by remember { mutableStateOf<Long?>(null) }
     var draggingOffset by remember { mutableFloatStateOf(0f) }
-    val latestLastIndex by rememberUpdatedState(tracks.lastIndex)
+    val latestLastIndex by rememberUpdatedState(playlistTracks.lastIndex)
     val itemHeightPx = with(androidx.compose.ui.platform.LocalDensity.current) { 72.dp.toPx() }
 
     LazyColumn(modifier = modifier) {
         itemsIndexed(
-            items = tracks,
-            key = { _, track -> track.id },
-        ) { index, track ->
-            var currentIndex by remember(track.id) { mutableIntStateOf(index) }
+            items = playlistTracks,
+            key = { _, playlistTrack -> playlistTrack.playlistTrackId },
+        ) { index, playlistTrack ->
+            val track = playlistTrack.track
+            var currentIndex by remember(playlistTrack.playlistTrackId) { mutableIntStateOf(index) }
             ListItem(
                 modifier = Modifier
                     .graphicsLayer {
-                        translationY = if (draggingTrackId == track.id) draggingOffset else 0f
+                        translationY = if (draggingPlaylistTrackId == playlistTrack.playlistTrackId) {
+                            draggingOffset
+                        } else {
+                            0f
+                        }
                     }
                     .then(
                         if (isEditMode) {
@@ -290,20 +295,20 @@ private fun ReorderableTrackList(
                         Icon(
                             imageVector = Icons.Filled.DragHandle,
                             contentDescription = stringResource(id = R.string.playlist_reorder),
-                            modifier = Modifier.pointerInput(track.id) {
+                            modifier = Modifier.pointerInput(playlistTrack.playlistTrackId) {
                                 detectDragGesturesAfterLongPress(
                                     onDragStart = {
-                                        draggingTrackId = track.id
+                                        draggingPlaylistTrackId = playlistTrack.playlistTrackId
                                         draggingOffset = 0f
                                         currentIndex = index
                                     },
                                     onDragEnd = {
-                                        draggingTrackId = null
+                                        draggingPlaylistTrackId = null
                                         draggingOffset = 0f
                                         onDragFinished()
                                     },
                                     onDragCancel = {
-                                        draggingTrackId = null
+                                        draggingPlaylistTrackId = null
                                         draggingOffset = 0f
                                     },
                                     onDrag = { change, dragAmount ->
@@ -351,7 +356,7 @@ private fun ReorderableTrackList(
                             style = MaterialTheme.typography.labelMedium,
                         )
                         if (isEditMode) {
-                            IconButton(onClick = { onRemoveTrack(track.id) }) {
+                            IconButton(onClick = { onRemoveTrack(playlistTrack.playlistTrackId) }) {
                                 Icon(
                                     imageVector = Icons.Filled.Delete,
                                     contentDescription = stringResource(id = R.string.playlist_track_remove),

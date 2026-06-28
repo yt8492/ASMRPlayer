@@ -2,7 +2,6 @@ package com.yt8492.asmrplayer.data.local
 
 import androidx.room.Dao
 import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
@@ -34,47 +33,43 @@ interface PlaylistDao {
     @Query("DELETE FROM playlists WHERE id = :playlistId")
     suspend fun deletePlaylist(playlistId: Long)
 
-    @Query("SELECT trackId FROM playlist_tracks WHERE playlistId = :playlistId ORDER BY position ASC")
-    fun observeTrackIds(playlistId: Long): Flow<List<Long>>
+    @Query("SELECT * FROM playlist_tracks WHERE playlistId = :playlistId ORDER BY position ASC")
+    fun observePlaylistTracks(playlistId: Long): Flow<List<PlaylistTrackEntity>>
 
     @Query("SELECT trackId FROM playlist_tracks WHERE playlistId = :playlistId ORDER BY position ASC")
     suspend fun getTrackIds(playlistId: Long): List<Long>
 
+    @Query("SELECT id FROM playlist_tracks WHERE playlistId = :playlistId ORDER BY position ASC")
+    suspend fun getPlaylistTrackIds(playlistId: Long): List<Long>
+
     @Query("SELECT COUNT(*) FROM playlist_tracks WHERE playlistId = :playlistId")
     suspend fun getTrackCount(playlistId: Long): Int
 
-    @Query("SELECT COUNT(*) FROM playlist_tracks WHERE playlistId = :playlistId AND trackId = :trackId")
-    suspend fun countTrack(playlistId: Long, trackId: Long): Int
-
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    @Insert
     suspend fun insertTrack(track: PlaylistTrackEntity): Long
 
-    @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId AND trackId = :trackId")
-    suspend fun deleteTrack(playlistId: Long, trackId: Long)
+    @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId AND id = :playlistTrackId")
+    suspend fun deleteTrack(playlistId: Long, playlistTrackId: Long)
 
     @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId")
     suspend fun clearTracks(playlistId: Long)
 
     @Insert
-    suspend fun insertTracks(tracks: List<PlaylistTrackEntity>)
+    suspend fun insertTracksReturningIds(tracks: List<PlaylistTrackEntity>): List<Long>
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertTracksIgnoringConflicts(tracks: List<PlaylistTrackEntity>): List<Long>
+    @Query("UPDATE playlist_tracks SET position = :position WHERE playlistId = :playlistId AND id = :playlistTrackId")
+    suspend fun updateTrackPosition(playlistId: Long, playlistTrackId: Long, position: Int)
 
     @Query("UPDATE playlists SET updatedAt = :updatedAt WHERE id = :playlistId")
     suspend fun touchPlaylist(playlistId: Long, updatedAt: Long)
 
     @Transaction
     suspend fun appendTracks(playlistId: Long, trackIds: List<Long>, addedAt: Long): Int {
-        val currentTrackIds = getTrackIds(playlistId).toSet()
-        val tracksToAdd = trackIds
-            .distinct()
-            .filterNot { it in currentTrackIds }
-        if (tracksToAdd.isEmpty()) return 0
+        if (trackIds.isEmpty()) return 0
 
         val startPosition = getTrackCount(playlistId)
-        val insertedIds = insertTracksIgnoringConflicts(
-            tracksToAdd.mapIndexed { index, trackId ->
+        val insertedIds = insertTracksReturningIds(
+            trackIds.mapIndexed { index, trackId ->
                 PlaylistTrackEntity(
                     playlistId = playlistId,
                     trackId = trackId,
@@ -83,7 +78,7 @@ interface PlaylistDao {
                 )
             },
         )
-        val addedCount = insertedIds.count { it != -1L }
+        val addedCount = insertedIds.size
         if (addedCount > 0) {
             touchPlaylist(playlistId, addedAt)
         }
@@ -91,18 +86,16 @@ interface PlaylistDao {
     }
 
     @Transaction
-    suspend fun replaceTrackOrder(playlistId: Long, trackIds: List<Long>, updatedAt: Long) {
-        clearTracks(playlistId)
-        insertTracks(
-            trackIds.mapIndexed { index, trackId ->
-                PlaylistTrackEntity(
-                    playlistId = playlistId,
-                    trackId = trackId,
-                    position = index,
-                    addedAt = updatedAt,
-                )
-            },
-        )
+    suspend fun replaceTrackOrder(playlistId: Long, playlistTrackIds: List<Long>, updatedAt: Long) {
+        playlistTrackIds.forEachIndexed { index, playlistTrackId ->
+            updateTrackPosition(playlistId, playlistTrackId, index)
+        }
         touchPlaylist(playlistId, updatedAt)
+    }
+
+    @Transaction
+    suspend fun removeTrackAndReorder(playlistId: Long, playlistTrackId: Long, updatedAt: Long) {
+        deleteTrack(playlistId, playlistTrackId)
+        replaceTrackOrder(playlistId, getPlaylistTrackIds(playlistId), updatedAt)
     }
 }

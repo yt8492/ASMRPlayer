@@ -3,10 +3,10 @@ package com.yt8492.asmrplayer.data.local
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
+import androidx.room.PrimaryKey
 
 @Entity(
     tableName = "playlist_tracks",
-    primaryKeys = ["playlistId", "trackId"],
     foreignKeys = [
         ForeignKey(
             entity = PlaylistEntity::class,
@@ -17,10 +17,12 @@ import androidx.room.Index
     ],
     indices = [
         Index(value = ["playlistId", "position"]),
-        Index(value = ["playlistId", "trackId"], unique = true),
+        Index(value = ["playlistId", "trackId"]),
     ],
 )
 data class PlaylistTrackEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
     val playlistId: Long,
     val trackId: Long,
     val position: Int,

@@ -27,17 +27,27 @@ class PlaylistDetailViewModel(
     fun loadPlaylistTracks() {
         if (!_uiState.value.isLoading && _uiState.value.playlist != null) return
         viewModelScope.launch {
-            playlistRepository.observeTrackIds(playlistId).collect { trackIds ->
+            playlistRepository.observePlaylistTracks(playlistId).collect { playlistTracks ->
                 runCatching {
                     val playlist = playlistRepository.getPlaylist(playlistId)
+                    val trackIds = playlistTracks.map { it.trackId }
                     val tracks = trackRepository.getTracks(trackIds)
-                    playlist to tracks
-                }.onSuccess { (playlist, tracks) ->
+                    val tracksById = tracks.associateBy { it.id }
+                    val playlistTrackItems = playlistTracks.mapNotNull { playlistTrack ->
+                        tracksById[playlistTrack.trackId]?.let { track ->
+                            PlaylistTrackItem(
+                                playlistTrackId = playlistTrack.id,
+                                track = track,
+                            )
+                        }
+                    }
+                    playlist to playlistTrackItems
+                }.onSuccess { (playlist, playlistTrackItems) ->
                     _uiState.update {
                         it.copy(
                             isLoading = false,
                             playlist = playlist,
-                            tracks = tracks,
+                            playlistTracks = playlistTrackItems,
                             errorMessage = null,
                         )
                     }
@@ -53,12 +63,12 @@ class PlaylistDetailViewModel(
         }
     }
 
-    fun removeTrack(trackId: Long) {
-        val currentTracks = _uiState.value.tracks.filterNot { it.id == trackId }
-        _uiState.update { it.copy(tracks = currentTracks) }
+    fun removeTrack(playlistTrackId: Long) {
+        val currentTracks = _uiState.value.playlistTracks.filterNot { it.playlistTrackId == playlistTrackId }
+        _uiState.update { it.copy(playlistTracks = currentTracks) }
         viewModelScope.launch {
             runCatching {
-                playlistRepository.removeTrack(playlistId, trackId)
+                playlistRepository.removeTrack(playlistId, playlistTrackId)
             }.onFailure {
                 _uiState.update { state ->
                     state.copy(errorMessage = "トラックの削除に失敗しました")
@@ -82,22 +92,22 @@ class PlaylistDetailViewModel(
     }
 
     fun moveTrack(fromIndex: Int, toIndex: Int) {
-        val currentTracks = _uiState.value.tracks
-        val movedTrackIds = PlaylistTrackOrder.move(
-            trackIds = currentTracks.map { it.id },
+        val currentTracks = _uiState.value.playlistTracks
+        val movedPlaylistTrackIds = PlaylistTrackOrder.move(
+            itemIds = currentTracks.map { it.playlistTrackId },
             fromIndex = fromIndex,
             toIndex = toIndex,
         )
-        val tracksById = currentTracks.associateBy { it.id }
-        val movedTracks = movedTrackIds.mapNotNull { tracksById[it] }
-        _uiState.update { it.copy(tracks = movedTracks) }
+        val tracksByPlaylistTrackId = currentTracks.associateBy { it.playlistTrackId }
+        val movedTracks = movedPlaylistTrackIds.mapNotNull { tracksByPlaylistTrackId[it] }
+        _uiState.update { it.copy(playlistTracks = movedTracks) }
     }
 
     fun saveCurrentOrder() {
-        val trackIds = _uiState.value.tracks.map { it.id }
+        val playlistTrackIds = _uiState.value.playlistTracks.map { it.playlistTrackId }
         viewModelScope.launch {
             runCatching {
-                playlistRepository.replaceTrackOrder(playlistId, trackIds)
+                playlistRepository.replaceTrackOrder(playlistId, playlistTrackIds)
             }.onFailure {
                 _uiState.update { state ->
                     state.copy(errorMessage = "曲順の保存に失敗しました")

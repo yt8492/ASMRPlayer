@@ -5,6 +5,7 @@ import com.yt8492.asmrplayer.data.local.PlaylistEntity
 import com.yt8492.asmrplayer.data.local.PlaylistSummary
 import com.yt8492.asmrplayer.data.local.PlaylistTrackEntity
 import com.yt8492.asmrplayer.data.model.Playlist
+import com.yt8492.asmrplayer.data.model.PlaylistTrack
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -19,8 +20,10 @@ class PlaylistRepositoryImpl(
         }
     }
 
-    override fun observeTrackIds(playlistId: Long): Flow<List<Long>> {
-        return playlistDao.observeTrackIds(playlistId)
+    override fun observePlaylistTracks(playlistId: Long): Flow<List<PlaylistTrack>> {
+        return playlistDao.observePlaylistTracks(playlistId).map { playlistTracks ->
+            playlistTracks.map { it.toModel() }
+        }
     }
 
     override suspend fun getPlaylist(playlistId: Long): Playlist? = withContext(Dispatchers.IO) {
@@ -64,12 +67,9 @@ class PlaylistRepositoryImpl(
     }
 
     override suspend fun addTrack(playlistId: Long, trackId: Long): AddTrackResult = withContext(Dispatchers.IO) {
-        if (playlistDao.countTrack(playlistId, trackId) > 0) {
-            return@withContext AddTrackResult.AlreadyExists
-        }
         val now = System.currentTimeMillis()
         val position = playlistDao.getTrackCount(playlistId)
-        val inserted = playlistDao.insertTrack(
+        playlistDao.insertTrack(
             PlaylistTrackEntity(
                 playlistId = playlistId,
                 trackId = trackId,
@@ -78,32 +78,30 @@ class PlaylistRepositoryImpl(
             ),
         )
         playlistDao.touchPlaylist(playlistId, now)
-        if (inserted == -1L) AddTrackResult.AlreadyExists else AddTrackResult.Added
+        AddTrackResult.Added
     }
 
     override suspend fun addTracks(playlistId: Long, trackIds: List<Long>): AddTracksResult = withContext(Dispatchers.IO) {
-        val uniqueTrackIds = trackIds.distinct()
-        if (uniqueTrackIds.isEmpty()) {
+        if (trackIds.isEmpty()) {
             return@withContext AddTracksResult(addedCount = 0, skippedCount = 0)
         }
         val addedCount = playlistDao.appendTracks(
             playlistId = playlistId,
-            trackIds = uniqueTrackIds,
+            trackIds = trackIds,
             addedAt = System.currentTimeMillis(),
         )
         AddTracksResult(
             addedCount = addedCount,
-            skippedCount = uniqueTrackIds.size - addedCount,
+            skippedCount = trackIds.size - addedCount,
         )
     }
 
-    override suspend fun removeTrack(playlistId: Long, trackId: Long) = withContext(Dispatchers.IO) {
-        val remaining = PlaylistTrackOrder.remove(playlistDao.getTrackIds(playlistId), trackId)
-        playlistDao.replaceTrackOrder(playlistId, remaining, System.currentTimeMillis())
+    override suspend fun removeTrack(playlistId: Long, playlistTrackId: Long) = withContext(Dispatchers.IO) {
+        playlistDao.removeTrackAndReorder(playlistId, playlistTrackId, System.currentTimeMillis())
     }
 
-    override suspend fun replaceTrackOrder(playlistId: Long, trackIds: List<Long>) = withContext(Dispatchers.IO) {
-        playlistDao.replaceTrackOrder(playlistId, trackIds, System.currentTimeMillis())
+    override suspend fun replaceTrackOrder(playlistId: Long, playlistTrackIds: List<Long>) = withContext(Dispatchers.IO) {
+        playlistDao.replaceTrackOrder(playlistId, playlistTrackIds, System.currentTimeMillis())
     }
 
     private fun PlaylistSummary.toModel(): Playlist {
@@ -113,6 +111,13 @@ class PlaylistRepositoryImpl(
             trackCount = trackCount,
             createdAt = createdAt,
             updatedAt = updatedAt,
+        )
+    }
+
+    private fun PlaylistTrackEntity.toModel(): PlaylistTrack {
+        return PlaylistTrack(
+            id = id,
+            trackId = trackId,
         )
     }
 }

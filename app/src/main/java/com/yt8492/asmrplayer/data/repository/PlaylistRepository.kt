@@ -1,11 +1,12 @@
 package com.yt8492.asmrplayer.data.repository
 
 import com.yt8492.asmrplayer.data.model.Playlist
+import com.yt8492.asmrplayer.data.model.PlaylistTrack
 import kotlinx.coroutines.flow.Flow
 
 interface PlaylistRepository {
     fun observePlaylists(): Flow<List<Playlist>>
-    fun observeTrackIds(playlistId: Long): Flow<List<Long>>
+    fun observePlaylistTracks(playlistId: Long): Flow<List<PlaylistTrack>>
     suspend fun getPlaylist(playlistId: Long): Playlist?
     suspend fun getTrackIds(playlistId: Long): List<Long>
     suspend fun createPlaylist(name: String): Long
@@ -13,13 +14,12 @@ interface PlaylistRepository {
     suspend fun deletePlaylist(playlistId: Long)
     suspend fun addTrack(playlistId: Long, trackId: Long): AddTrackResult
     suspend fun addTracks(playlistId: Long, trackIds: List<Long>): AddTracksResult
-    suspend fun removeTrack(playlistId: Long, trackId: Long)
-    suspend fun replaceTrackOrder(playlistId: Long, trackIds: List<Long>)
+    suspend fun removeTrack(playlistId: Long, playlistTrackId: Long)
+    suspend fun replaceTrackOrder(playlistId: Long, playlistTrackIds: List<Long>)
 }
 
 enum class AddTrackResult {
     Added,
-    AlreadyExists,
 }
 
 data class AddTracksResult(

@@ -1,17 +1,13 @@
 package com.yt8492.asmrplayer.data.repository
 
 object PlaylistTrackOrder {
-    fun remove(trackIds: List<Long>, trackId: Long): List<Long> {
-        return trackIds.filterNot { it == trackId }
-    }
-
-    fun move(trackIds: List<Long>, fromIndex: Int, toIndex: Int): List<Long> {
-        if (fromIndex !in trackIds.indices || toIndex !in trackIds.indices || fromIndex == toIndex) {
-            return trackIds
+    fun move(itemIds: List<Long>, fromIndex: Int, toIndex: Int): List<Long> {
+        if (fromIndex !in itemIds.indices || toIndex !in itemIds.indices || fromIndex == toIndex) {
+            return itemIds
         }
-        val mutableTrackIds = trackIds.toMutableList()
-        val movedTrackId = mutableTrackIds.removeAt(fromIndex)
-        mutableTrackIds.add(toIndex, movedTrackId)
-        return mutableTrackIds
+        val mutableItemIds = itemIds.toMutableList()
+        val movedItemId = mutableItemIds.removeAt(fromIndex)
+        mutableItemIds.add(toIndex, movedItemId)
+        return mutableItemIds
     }
 }
