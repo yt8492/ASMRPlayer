@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,6 +27,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -55,6 +58,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -92,6 +96,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -294,6 +299,13 @@ fun PlayerScreen(
     var repeatMode by remember { mutableIntStateOf(player.repeatMode) }
     val bottomSheetScaffoldState = rememberBottomSheetScaffoldState()
     val coroutineScope = rememberCoroutineScope()
+    val shouldApplySheetTopPadding = bottomSheetScaffoldState.bottomSheetState.currentValue == SheetValue.Expanded ||
+        bottomSheetScaffoldState.bottomSheetState.targetValue == SheetValue.Expanded
+    val expandedSheetTopPadding = if (shouldApplySheetTopPadding) {
+        WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    } else {
+        0.dp
+    }
 
     DisposableEffect(player) {
         val listener = object : Player.Listener {
@@ -386,6 +398,7 @@ fun PlayerScreen(
                 queueItems = uiState.queueItems,
                 currentIndex = currentIndex,
                 canChangeQueue = player.isCommandAvailable(Player.COMMAND_CHANGE_MEDIA_ITEMS),
+                topPadding = expandedSheetTopPadding,
                 onQueueItemClick = { index ->
                     if (index != currentIndex && index in uiState.queueItems.indices) {
                         player.seekTo(index, 0)
@@ -861,6 +874,7 @@ private fun PlaybackQueueSheet(
     queueItems: List<PlayerQueueItem>,
     currentIndex: Int,
     canChangeQueue: Boolean,
+    topPadding: Dp,
     onQueueItemClick: (Int) -> Unit,
     onMoveQueueItem: (fromIndex: Int, toIndex: Int) -> Unit,
     modifier: Modifier = Modifier,
@@ -869,7 +883,7 @@ private fun PlaybackQueueSheet(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(bottom = 24.dp),
+            .padding(top = topPadding, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         PlaybackQueueSheetHandle(
