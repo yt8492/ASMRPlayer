@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -54,12 +55,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -69,6 +69,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -105,6 +106,7 @@ import com.yt8492.asmrplayer.R
 import com.yt8492.asmrplayer.service.PlaybackService
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun PlayerRoute(
@@ -289,7 +291,8 @@ fun PlayerScreen(
     var loopEndMs by remember { mutableStateOf<Long?>(null) }
     var isLooping by remember { mutableStateOf(false) }
     var repeatMode by remember { mutableIntStateOf(player.repeatMode) }
-    var isQueueSheetVisible by remember { mutableStateOf(false) }
+    val bottomSheetScaffoldState = rememberBottomSheetScaffoldState()
+    val coroutineScope = rememberCoroutineScope()
 
     DisposableEffect(player) {
         val listener = object : Player.Listener {
@@ -371,9 +374,37 @@ fun PlayerScreen(
         isLooping = false
     }
 
-    Scaffold(
+    BottomSheetScaffold(
         modifier = modifier,
+        scaffoldState = bottomSheetScaffoldState,
         containerColor = MaterialTheme.colorScheme.background,
+        sheetPeekHeight = if (uiState.queueItems.isEmpty()) 0.dp else PlayerQueueSheetPeekHeight,
+        sheetDragHandle = null,
+        sheetContent = {
+            PlaybackQueueSheet(
+                queueItems = uiState.queueItems,
+                currentIndex = currentIndex,
+                canChangeQueue = player.isCommandAvailable(Player.COMMAND_CHANGE_MEDIA_ITEMS),
+                onQueueItemClick = { index ->
+                    if (index != currentIndex && index in uiState.queueItems.indices) {
+                        player.seekTo(index, 0)
+                        player.play()
+                        currentIndex = player.currentMediaItemIndex
+                        positionMs = player.currentPosition.coerceAtLeast(0L)
+                    }
+                    coroutineScope.launch {
+                        bottomSheetScaffoldState.bottomSheetState.partialExpand()
+                    }
+                },
+                onMoveQueueItem = { fromIndex, toIndex ->
+                    if (player.isCommandAvailable(Player.COMMAND_CHANGE_MEDIA_ITEMS)) {
+                        player.moveMediaItem(fromIndex, toIndex)
+                        currentIndex = player.currentMediaItemIndex
+                        onMoveQueueItem(fromIndex, toIndex)
+                    }
+                },
+            )
+        },
         topBar = {
             TopAppBar(
                 title = { Text(text = queueTitle) },
@@ -387,7 +418,11 @@ fun PlayerScreen(
                 },
                 actions = {
                     IconButton(
-                        onClick = { isQueueSheetVisible = true },
+                        onClick = {
+                            coroutineScope.launch {
+                                bottomSheetScaffoldState.bottomSheetState.expand()
+                            }
+                        },
                         enabled = uiState.queueItems.isNotEmpty(),
                     ) {
                         Icon(
@@ -517,7 +552,7 @@ fun PlayerScreen(
                 ) {
                     CircularProgressIndicator()
                 }
-                return@Scaffold
+                return@BottomSheetScaffold
             }
 
             uiState.queueItems.isEmpty() -> {
@@ -529,7 +564,7 @@ fun PlayerScreen(
                 ) {
                     Text(text = uiState.errorMessage ?: stringResource(id = R.string.player_no_track))
                 }
-                return@Scaffold
+                return@BottomSheetScaffold
             }
         }
 
@@ -568,7 +603,7 @@ fun PlayerScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(start = 24.dp, top = 18.dp, end = 24.dp, bottom = 96.dp),
+                    .padding(start = 24.dp, top = 18.dp, end = 24.dp, bottom = PlayerQueueSheetPeekHeight + 24.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -774,16 +809,6 @@ fun PlayerScreen(
                 }
             }
 
-            if (!isQueueSheetVisible) {
-                PlaybackQueueSheetHandle(
-                    onClick = { isQueueSheetVisible = true },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .navigationBarsPadding()
-                        .padding(bottom = 18.dp),
-                )
-            }
-
             seekFeedback?.let { feedback ->
                 SeekFeedbackBadge(
                     feedback = feedback,
@@ -794,36 +819,10 @@ fun PlayerScreen(
             }
         }
     }
-
-    if (isQueueSheetVisible) {
-        PlaybackQueueSheet(
-            queueItems = uiState.queueItems,
-            currentIndex = currentIndex,
-            canChangeQueue = player.isCommandAvailable(Player.COMMAND_CHANGE_MEDIA_ITEMS),
-            onDismiss = { isQueueSheetVisible = false },
-            onQueueItemClick = { index ->
-                if (index != currentIndex && index in uiState.queueItems.indices) {
-                    player.seekTo(index, 0)
-                    player.play()
-                    currentIndex = player.currentMediaItemIndex
-                    positionMs = player.currentPosition.coerceAtLeast(0L)
-                }
-                isQueueSheetVisible = false
-            },
-            onMoveQueueItem = { fromIndex, toIndex ->
-                if (player.isCommandAvailable(Player.COMMAND_CHANGE_MEDIA_ITEMS)) {
-                    player.moveMediaItem(fromIndex, toIndex)
-                    currentIndex = player.currentMediaItemIndex
-                    onMoveQueueItem(fromIndex, toIndex)
-                }
-            },
-        )
-    }
 }
 
 @Composable
 private fun PlaybackQueueSheetHandle(
-    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val queueLabel = stringResource(id = R.string.player_queue)
@@ -831,10 +830,6 @@ private fun PlaybackQueueSheetHandle(
     Column(
         modifier = modifier
             .clip(MaterialTheme.shapes.small)
-            .clickable(
-                role = Role.Button,
-                onClick = onClick,
-            )
             .semantics {
                 contentDescription = queueLabel
             }
@@ -858,57 +853,50 @@ private fun PlaybackQueueSheetHandle(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PlaybackQueueSheet(
     queueItems: List<PlayerQueueItem>,
     currentIndex: Int,
     canChangeQueue: Boolean,
-    onDismiss: () -> Unit,
     onQueueItemClick: (Int) -> Unit,
     onMoveQueueItem: (fromIndex: Int, toIndex: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        modifier = modifier,
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Column(
+        PlaybackQueueSheetHandle(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .height(PlayerQueueSheetPeekHeight),
+        )
+        Text(
+            text = stringResource(id = R.string.player_queue_count, queueItems.size),
+            modifier = Modifier.padding(horizontal = 24.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(
-                text = stringResource(id = R.string.player_queue),
-                modifier = Modifier.padding(horizontal = 24.dp),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = stringResource(id = R.string.player_queue_count, queueItems.size),
-                modifier = Modifier.padding(horizontal = 24.dp),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                itemsIndexed(
-                    items = queueItems,
-                    key = { _, queueItem -> queueItem.queueItemId },
-                ) { index, queueItem ->
-                    PlaybackQueueListItem(
-                        queueItem = queueItem,
-                        index = index,
-                        isCurrent = index == currentIndex,
-                        canChangeQueue = canChangeQueue,
-                        onClick = { onQueueItemClick(index) },
-                        onMoveQueueItem = onMoveQueueItem,
-                        lastIndex = queueItems.lastIndex,
-                    )
-                    HorizontalDivider()
-                }
+            itemsIndexed(
+                items = queueItems,
+                key = { _, queueItem -> queueItem.queueItemId },
+            ) { index, queueItem ->
+                PlaybackQueueListItem(
+                    queueItem = queueItem,
+                    index = index,
+                    isCurrent = index == currentIndex,
+                    canChangeQueue = canChangeQueue,
+                    onClick = { onQueueItemClick(index) },
+                    onMoveQueueItem = onMoveQueueItem,
+                    lastIndex = queueItems.lastIndex,
+                )
+                HorizontalDivider()
             }
         }
     }
@@ -1288,6 +1276,7 @@ private fun Int.nextRepeatMode(): Int = when (this) {
 
 private const val DOUBLE_TAP_SEEK_INTERVAL_MS = 10_000L
 private const val SEEK_FEEDBACK_VISIBLE_MS = 600L
+private val PlayerQueueSheetPeekHeight = 72.dp
 
 private enum class SeekFeedback(
     val label: String,
