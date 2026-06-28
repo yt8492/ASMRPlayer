@@ -36,7 +36,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
@@ -434,19 +433,6 @@ fun PlayerScreen(
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = {
-                            coroutineScope.launch {
-                                bottomSheetScaffoldState.bottomSheetState.expand()
-                            }
-                        },
-                        enabled = uiState.queueItems.isNotEmpty(),
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                            contentDescription = stringResource(id = R.string.player_queue),
-                        )
-                    }
                     currentTrackId?.let { trackId ->
                         IconButton(
                             onClick = { artworkMenuExpanded = true },
