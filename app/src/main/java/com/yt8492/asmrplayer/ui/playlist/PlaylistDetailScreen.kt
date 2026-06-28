@@ -21,6 +21,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -56,6 +58,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yt8492.asmrplayer.R
 import com.yt8492.asmrplayer.ui.common.SingleLineMarqueeText
+import com.yt8492.asmrplayer.ui.common.rememberCurrentPlaybackTrackId
 import java.util.concurrent.TimeUnit
 
 @Composable
@@ -130,6 +133,7 @@ fun PlaylistDetailScreen(
     bottomBar: @Composable () -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    val currentPlaybackTrackId by rememberCurrentPlaybackTrackId()
     var isRenameDialogVisible by remember { mutableStateOf(false) }
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let { message ->
@@ -203,6 +207,7 @@ fun PlaylistDetailScreen(
                     onRemoveTrack = onRemoveTrack,
                     onMoveTrack = onMoveTrack,
                     onDragFinished = onDragFinished,
+                    currentPlaybackTrackId = currentPlaybackTrackId,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -257,6 +262,7 @@ private fun ReorderableTrackList(
     onRemoveTrack: (Long) -> Unit,
     onMoveTrack: (fromIndex: Int, toIndex: Int) -> Unit,
     onDragFinished: () -> Unit,
+    currentPlaybackTrackId: Long?,
     modifier: Modifier = Modifier,
 ) {
     var draggingPlaylistTrackId by remember { mutableStateOf<Long?>(null) }
@@ -270,6 +276,8 @@ private fun ReorderableTrackList(
             key = { _, playlistTrack -> playlistTrack.playlistTrackId },
         ) { index, playlistTrack ->
             val track = playlistTrack.track
+            val isCurrentTrack = track.id == currentPlaybackTrackId
+            val primaryColor = MaterialTheme.colorScheme.primary
             var currentIndex by remember(playlistTrack.playlistTrackId) { mutableIntStateOf(index) }
             ListItem(
                 modifier = Modifier
@@ -287,11 +295,12 @@ private fun ReorderableTrackList(
                             Modifier.clickable { onTrackClick(index) }
                         },
                     ),
-                leadingContent = if (isEditMode) {
-                    {
+                leadingContent = {
+                    if (isEditMode) {
                         Icon(
                             imageVector = Icons.Filled.DragHandle,
                             contentDescription = stringResource(id = R.string.playlist_reorder),
+                            tint = if (isCurrentTrack) primaryColor else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.pointerInput(playlistTrack.playlistTrackId) {
                                 detectDragGesturesAfterLongPress(
                                     onDragStart = {
@@ -325,18 +334,24 @@ private fun ReorderableTrackList(
                                 )
                             },
                         )
+                    } else {
+                        Icon(
+                            imageVector = if (isCurrentTrack) Icons.Filled.PlayArrow else Icons.Filled.MusicNote,
+                            contentDescription = null,
+                            tint = if (isCurrentTrack) primaryColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
-                } else {
-                    null
                 },
                 headlineContent = {
                     SingleLineMarqueeText(
                         text = track.title,
+                        color = if (isCurrentTrack) primaryColor else MaterialTheme.colorScheme.onSurface,
                     )
                 },
                 supportingContent = {
                     SingleLineMarqueeText(
                         text = track.artist,
+                        color = if (isCurrentTrack) primaryColor else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 },
                 trailingContent = {

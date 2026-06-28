@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -74,6 +75,7 @@ import com.yt8492.asmrplayer.data.model.ImageFile
 import com.yt8492.asmrplayer.data.model.Playlist
 import com.yt8492.asmrplayer.data.model.Track
 import coil.compose.AsyncImage
+import com.yt8492.asmrplayer.ui.common.rememberCurrentPlaybackTrackId
 import com.yt8492.asmrplayer.ui.common.SingleLineMarqueeText
 import java.util.concurrent.TimeUnit
 
@@ -166,6 +168,7 @@ fun FileExplorerScreen(
     resetRequestKey: Int = 0,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    val currentPlaybackTrackId by rememberCurrentPlaybackTrackId()
     var selectedTrack by remember { mutableStateOf<Track?>(null) }
     var trackForNewPlaylist by remember { mutableStateOf<Track?>(null) }
     var selectedDirectory by remember { mutableStateOf<AudioDirectory?>(null) }
@@ -273,6 +276,7 @@ fun FileExplorerScreen(
                     onImageClick = { image -> previewImage = image },
                     onAddToPlaylistClick = { track -> selectedTrack = track },
                     onAddDirectoryToPlaylistClick = { directory -> selectedDirectory = directory },
+                    currentPlaybackTrackId = currentPlaybackTrackId,
                     resetRequestKey = resetRequestKey,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -400,6 +404,7 @@ private fun FileExplorerList(
     onImageClick: (ImageFile) -> Unit,
     onAddToPlaylistClick: (Track) -> Unit,
     onAddDirectoryToPlaylistClick: (AudioDirectory) -> Unit,
+    currentPlaybackTrackId: Long?,
     resetRequestKey: Int = 0,
     modifier: Modifier = Modifier,
 ) {
@@ -454,22 +459,39 @@ private fun FileExplorerList(
             items = tracks,
             key = { _, track -> track.id },
         ) { index, track ->
+            val isCurrentTrack = track.id == currentPlaybackTrackId
+            val contentColor = if (isCurrentTrack) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            }
             ListItem(
                 modifier = Modifier.clickable { onTrackClick(index) },
                 leadingContent = {
                     Icon(
-                        imageVector = Icons.Filled.MusicNote,
+                        imageVector = if (isCurrentTrack) Icons.Filled.PlayArrow else Icons.Filled.MusicNote,
                         contentDescription = null,
+                        tint = if (isCurrentTrack) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
                     )
                 },
                 headlineContent = {
                     SingleLineMarqueeText(
                         text = track.title,
+                        color = contentColor,
                     )
                 },
                 supportingContent = {
                     SingleLineMarqueeText(
                         text = track.artist,
+                        color = if (isCurrentTrack) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
                     )
                 },
                 trailingContent = {
