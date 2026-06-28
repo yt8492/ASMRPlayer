@@ -619,7 +619,12 @@ fun PlayerScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(start = 24.dp, top = 18.dp, end = 24.dp, bottom = PlayerQueueSheetPeekHeight + 24.dp),
+                    .padding(
+                        start = 24.dp,
+                        top = 18.dp,
+                        end = 24.dp,
+                        bottom = PlayerFixedSeekPanelHeight + 8.dp,
+                    ),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -649,47 +654,6 @@ fun PlayerScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
                     )
-                }
-
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    ABLoopSlider(
-                        positionMs = positionMs,
-                        durationMs = durationMs,
-                        startMs = loopStartMs,
-                        endMs = loopEndMs,
-                        onValueChange = { newValue ->
-                            positionMs = newValue.toLong().coerceIn(0, durationMs)
-                        },
-                        onValueChangeFinished = {
-                            player.seekTo(positionMs)
-                            val activeRange = TrackLoopRangeFactory.create(loopStartMs, loopEndMs, durationMs)
-                            if (
-                                isLooping &&
-                                activeRange != null &&
-                                TrackLoopRangeFactory.shouldStopLoopAfterUserSeek(activeRange, positionMs)
-                            ) {
-                                isLooping = false
-                            }
-                        },
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(
-                            text = formatDuration(positionMs),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            text = formatDuration(durationMs),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
                 }
 
                 TrackLoopStatusText(
@@ -825,12 +789,89 @@ fun PlayerScreen(
                 }
             }
 
+            FixedSeekPanel(
+                positionMs = positionMs,
+                durationMs = durationMs,
+                loopStartMs = loopStartMs,
+                loopEndMs = loopEndMs,
+                onValueChange = { newValue ->
+                    positionMs = newValue.toLong().coerceIn(0, durationMs)
+                },
+                onValueChangeFinished = {
+                    player.seekTo(positionMs)
+                    val activeRange = TrackLoopRangeFactory.create(loopStartMs, loopEndMs, durationMs)
+                    if (
+                        isLooping &&
+                        activeRange != null &&
+                        TrackLoopRangeFactory.shouldStopLoopAfterUserSeek(activeRange, positionMs)
+                    ) {
+                        isLooping = false
+                    }
+                },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+
             seekFeedback?.let { feedback ->
                 SeekFeedbackBadge(
                     feedback = feedback,
                     modifier = Modifier
                         .align(feedback.alignment)
                         .padding(horizontal = 32.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FixedSeekPanel(
+    positionMs: Long,
+    durationMs: Long,
+    loopStartMs: Long?,
+    loopEndMs: Long?,
+    onValueChange: (Float) -> Unit,
+    onValueChangeFinished: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(PlayerFixedSeekPanelHeight)
+            .background(MaterialTheme.colorScheme.background),
+    ) {
+        HorizontalDivider()
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = 24.dp,
+                    end = 24.dp,
+                    top = 4.dp,
+                    bottom = 2.dp,
+                ),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            ABLoopSlider(
+                positionMs = positionMs,
+                durationMs = durationMs,
+                startMs = loopStartMs,
+                endMs = loopEndMs,
+                onValueChange = onValueChange,
+                onValueChangeFinished = onValueChangeFinished,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = formatDuration(positionMs),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = formatDuration(durationMs),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -1080,7 +1121,7 @@ private fun ABLoopSlider(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(56.dp),
+            .height(48.dp),
         contentAlignment = Alignment.Center,
     ) {
         Slider(
@@ -1289,6 +1330,7 @@ private fun Int.nextRepeatMode(): Int = when (this) {
 
 private const val DOUBLE_TAP_SEEK_INTERVAL_MS = 10_000L
 private const val SEEK_FEEDBACK_VISIBLE_MS = 600L
+private val PlayerFixedSeekPanelHeight = 72.dp
 private val PlayerQueueSheetPeekHeight = 72.dp
 
 private enum class SeekFeedback(
