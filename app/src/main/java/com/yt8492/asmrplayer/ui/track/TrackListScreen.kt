@@ -70,6 +70,7 @@ fun TrackListRoute(
     onBack: () -> Unit,
     onTrackClick: (tracks: List<Track>, index: Int) -> Unit,
     modifier: Modifier = Modifier,
+    bottomBar: @Composable () -> Unit = {},
     viewModel: TrackListViewModel = viewModel(
         factory = TrackListViewModel.provideFactory(LocalContext.current, albumId),
     ),
@@ -114,6 +115,7 @@ fun TrackListRoute(
         onCreatePlaylistAndAddTrack = viewModel::createPlaylistAndAddTrack,
         onPlaylistMessageShown = viewModel::consumePlaylistMessage,
         modifier = modifier,
+        bottomBar = bottomBar,
     )
 }
 
@@ -130,6 +132,7 @@ fun TrackListScreen(
     onCreatePlaylistAndAddTrack: (name: String, trackId: Long) -> Unit,
     onPlaylistMessageShown: () -> Unit,
     modifier: Modifier = Modifier,
+    bottomBar: @Composable () -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedTrack by remember { mutableStateOf<Track?>(null) }
@@ -171,6 +174,7 @@ fun TrackListScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = bottomBar,
     ) { innerPadding ->
         Box(
             modifier = Modifier

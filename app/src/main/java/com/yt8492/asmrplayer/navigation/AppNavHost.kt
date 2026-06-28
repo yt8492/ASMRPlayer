@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
@@ -31,6 +32,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.yt8492.asmrplayer.service.PlaybackService
 import com.yt8492.asmrplayer.ui.fileexplorer.FileExplorerRoute
+import com.yt8492.asmrplayer.ui.common.MiniPlaybackController
 import com.yt8492.asmrplayer.ui.player.PlaybackQueue
 import com.yt8492.asmrplayer.ui.player.PlayerRoute
 import com.yt8492.asmrplayer.ui.playlist.PlaylistDetailRoute
@@ -47,64 +49,45 @@ fun AppNavHost(
 ) {
     LaunchedEffect(playbackDestination?.requestId) {
         val destination = playbackDestination ?: return@LaunchedEffect
-        when (destination.queueType) {
-            PlaybackService.QUEUE_TYPE_PLAYLIST -> {
-                val name = Uri.encode(destination.playlistName)
-                val startIndexQuery = destination.startIndex?.let { "&startIndex=$it" }.orEmpty()
-                navController.navigate(
-                    "player/playlist/${destination.playlistId}/${destination.trackId}" +
-                        "?name=$name&playlistTrackId=-1$startIndexQuery",
-                ) {
-                    launchSingleTop = true
-                }
-            }
-
-            PlaybackService.QUEUE_TYPE_FOLDER -> {
-                val path = Uri.encode(destination.folderPath)
-                val title = Uri.encode(destination.folderTitle)
-                navController.navigate("player/folder/${destination.trackId}?path=$path&title=$title") {
-                    launchSingleTop = true
-                }
-            }
-
-            else -> {
-                val title = Uri.encode(destination.albumTitle)
-                val art = Uri.encode(destination.albumArtUri?.toString() ?: "")
-                navController.navigate("player/album/${destination.albumId}/${destination.trackId}?title=$title&art=$art") {
-                    launchSingleTop = true
-                }
-            }
-        }
+        navController.navigateToPlaybackDestination(destination)
     }
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     var fileExplorerResetRequestKey by remember { mutableIntStateOf(0) }
     var playlistListResetRequestKey by remember { mutableIntStateOf(0) }
+    val shouldShowMiniPlaybackController = currentRoute?.startsWith("player/") != true
     val bottomBar: @Composable () -> Unit = {
-        MainNavigationBar(
-            currentRoute = currentRoute,
-            onNavigateToPlaylists = {
-                if (currentRoute == "playlist_list") {
-                    playlistListResetRequestKey += 1
-                } else {
-                    navController.navigate("playlist_list") {
-                        launchSingleTop = true
-                        popUpTo("file_explorer")
+        Column {
+            if (shouldShowMiniPlaybackController) {
+                MiniPlaybackController(
+                    onOpenPlayer = navController::navigateToPlaybackDestination,
+                )
+            }
+            MainNavigationBar(
+                currentRoute = currentRoute,
+                onNavigateToPlaylists = {
+                    if (currentRoute == "playlist_list") {
+                        playlistListResetRequestKey += 1
+                    } else {
+                        navController.navigate("playlist_list") {
+                            launchSingleTop = true
+                            popUpTo("file_explorer")
+                        }
                     }
-                }
-            },
-            onNavigateToFiles = {
-                if (currentRoute == "file_explorer") {
-                    fileExplorerResetRequestKey += 1
-                } else {
-                    navController.navigate("file_explorer") {
-                        launchSingleTop = true
-                        popUpTo("file_explorer")
+                },
+                onNavigateToFiles = {
+                    if (currentRoute == "file_explorer") {
+                        fileExplorerResetRequestKey += 1
+                    } else {
+                        navController.navigate("file_explorer") {
+                            launchSingleTop = true
+                            popUpTo("file_explorer")
+                        }
                     }
-                }
-            },
-        )
+                },
+            )
+        }
     }
 
     NavHost(
@@ -170,6 +153,7 @@ fun AppNavHost(
                     navController.navigate("player/album/$albumId/$trackId?title=$title&art=$art")
                 },
                 modifier = Modifier.fillMaxSize(),
+                bottomBar = bottomBar,
             )
         }
         composable(
@@ -273,6 +257,37 @@ fun AppNavHost(
                 onBack = { navController.popBackStack() },
                 modifier = Modifier.fillMaxSize(),
             )
+        }
+    }
+}
+
+private fun NavHostController.navigateToPlaybackDestination(destination: PlaybackDestination) {
+    when (destination.queueType) {
+        PlaybackService.QUEUE_TYPE_PLAYLIST -> {
+            val name = Uri.encode(destination.playlistName)
+            val startIndexQuery = destination.startIndex?.let { "&startIndex=$it" }.orEmpty()
+            navigate(
+                "player/playlist/${destination.playlistId}/${destination.trackId}" +
+                    "?name=$name&playlistTrackId=-1$startIndexQuery",
+            ) {
+                launchSingleTop = true
+            }
+        }
+
+        PlaybackService.QUEUE_TYPE_FOLDER -> {
+            val path = Uri.encode(destination.folderPath)
+            val title = Uri.encode(destination.folderTitle)
+            navigate("player/folder/${destination.trackId}?path=$path&title=$title") {
+                launchSingleTop = true
+            }
+        }
+
+        else -> {
+            val title = Uri.encode(destination.albumTitle)
+            val art = Uri.encode(destination.albumArtUri?.toString() ?: "")
+            navigate("player/album/${destination.albumId}/${destination.trackId}?title=$title&art=$art") {
+                launchSingleTop = true
+            }
         }
     }
 }

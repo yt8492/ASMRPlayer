@@ -195,6 +195,7 @@ fun PlayerRoute(
                         .setTitle(track.title)
                         .setArtist(track.artist)
                         .setAlbumTitle(trackAlbumTitle)
+                        .setArtworkUri(track.albumArtUri ?: queue.albumArtUri)
                         .setExtras(
                             Bundle().apply {
                                 when (queue) {
