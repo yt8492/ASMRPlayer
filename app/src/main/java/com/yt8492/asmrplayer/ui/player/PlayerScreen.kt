@@ -1281,8 +1281,8 @@ private fun AlbumArt(
         model = albumArtUri,
         contentDescription = contentDescription,
         modifier = modifier
-            .aspectRatio(1f)
-            .clip(MaterialTheme.shapes.large),
+            .aspectRatio(4f / 3f)
+            .fillMaxWidth(),
         contentScale = ContentScale.Fit,
         placeholder = rememberVectorPainter(Icons.Filled.Album),
         error = rememberVectorPainter(Icons.Filled.Album),
