@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 class PlayerViewModel(
     context: Context,
@@ -117,7 +118,8 @@ class PlayerViewModel(
                         startIndex = loadedTracks.startIndex,
                     )
                 }
-            }.onFailure {
+            }.onFailure { throwable ->
+                Timber.e(throwable, "再生キューのトラック取得に失敗しました queueType=%s", queue.logType())
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -174,48 +176,73 @@ class PlayerViewModel(
     fun saveTrackLoop(trackId: Long, startMs: Long, endMs: Long) {
         if (startMs >= endMs) return
         viewModelScope.launch {
-            trackLoopRepository.saveTrackLoop(trackId, startMs, endMs)
+            runCatching {
+                trackLoopRepository.saveTrackLoop(trackId, startMs, endMs)
+            }.onFailure { throwable ->
+                Timber.e(throwable, "ABリピート範囲の保存に失敗しました trackId=%d", trackId)
+            }
         }
     }
 
     fun deleteTrackLoop(trackId: Long) {
         viewModelScope.launch {
-            trackLoopRepository.deleteTrackLoop(trackId)
+            runCatching {
+                trackLoopRepository.deleteTrackLoop(trackId)
+            }.onFailure { throwable ->
+                Timber.e(throwable, "ABリピート範囲の削除に失敗しました trackId=%d", trackId)
+            }
         }
     }
 
     fun saveTrackArtwork(trackId: Long, imageUri: Uri) {
         viewModelScope.launch {
-            val previousUri = trackArtworkRepository.getTrackArtwork(trackId)?.imageUri
-            trackArtworkRepository.saveTrackArtwork(trackId, imageUri)
-            if (currentTrackId == trackId) {
-                _uiState.update { it.copy(currentTrackArtworkUri = imageUri) }
-            }
-            if (previousUri != null && previousUri != imageUri) {
-                releaseArtworkPermissionIfUnused(previousUri)
+            runCatching {
+                val previousUri = trackArtworkRepository.getTrackArtwork(trackId)?.imageUri
+                trackArtworkRepository.saveTrackArtwork(trackId, imageUri)
+                if (currentTrackId == trackId) {
+                    _uiState.update { it.copy(currentTrackArtworkUri = imageUri) }
+                }
+                if (previousUri != null && previousUri != imageUri) {
+                    releaseArtworkPermissionIfUnused(previousUri)
+                }
+            }.onFailure { throwable ->
+                Timber.e(throwable, "トラック画像の保存に失敗しました trackId=%d uriScheme=%s", trackId, imageUri.scheme)
             }
         }
     }
 
     fun deleteTrackArtwork(trackId: Long) {
         viewModelScope.launch {
-            val previousUri = trackArtworkRepository.getTrackArtwork(trackId)?.imageUri
-            trackArtworkRepository.deleteTrackArtwork(trackId)
-            if (currentTrackId == trackId) {
-                _uiState.update { it.copy(currentTrackArtworkUri = null) }
+            runCatching {
+                val previousUri = trackArtworkRepository.getTrackArtwork(trackId)?.imageUri
+                trackArtworkRepository.deleteTrackArtwork(trackId)
+                if (currentTrackId == trackId) {
+                    _uiState.update { it.copy(currentTrackArtworkUri = null) }
+                }
+                previousUri?.let { releaseArtworkPermissionIfUnused(it) }
+            }.onFailure { throwable ->
+                Timber.e(throwable, "トラック画像の削除に失敗しました trackId=%d", trackId)
             }
-            previousUri?.let { releaseArtworkPermissionIfUnused(it) }
         }
     }
 
     fun saveQueueArtwork(imageUri: Uri) {
         val target = queue.artworkTarget() ?: return
         viewModelScope.launch {
-            val previousUri = queueArtworkRepository.getQueueArtwork(target.queueType, target.queueKey)?.imageUri
-            queueArtworkRepository.saveQueueArtwork(target.queueType, target.queueKey, imageUri)
-            _uiState.update { it.copy(queueArtworkUri = imageUri) }
-            if (previousUri != null && previousUri != imageUri) {
-                releaseArtworkPermissionIfUnused(previousUri)
+            runCatching {
+                val previousUri = queueArtworkRepository.getQueueArtwork(target.queueType, target.queueKey)?.imageUri
+                queueArtworkRepository.saveQueueArtwork(target.queueType, target.queueKey, imageUri)
+                _uiState.update { it.copy(queueArtworkUri = imageUri) }
+                if (previousUri != null && previousUri != imageUri) {
+                    releaseArtworkPermissionIfUnused(previousUri)
+                }
+            }.onFailure { throwable ->
+                Timber.e(
+                    throwable,
+                    "再生キュー画像の保存に失敗しました queueType=%s uriScheme=%s",
+                    target.queueType,
+                    imageUri.scheme,
+                )
             }
         }
     }
@@ -223,10 +250,18 @@ class PlayerViewModel(
     fun deleteQueueArtwork() {
         val target = queue.artworkTarget() ?: return
         viewModelScope.launch {
-            val previousUri = queueArtworkRepository.getQueueArtwork(target.queueType, target.queueKey)?.imageUri
-            queueArtworkRepository.deleteQueueArtwork(target.queueType, target.queueKey)
-            _uiState.update { it.copy(queueArtworkUri = null) }
-            previousUri?.let { releaseArtworkPermissionIfUnused(it) }
+            runCatching {
+                val previousUri = queueArtworkRepository.getQueueArtwork(target.queueType, target.queueKey)?.imageUri
+                queueArtworkRepository.deleteQueueArtwork(target.queueType, target.queueKey)
+                _uiState.update { it.copy(queueArtworkUri = null) }
+                previousUri?.let { releaseArtworkPermissionIfUnused(it) }
+            }.onFailure { throwable ->
+                Timber.e(
+                    throwable,
+                    "再生キュー画像の削除に失敗しました queueType=%s",
+                    target.queueType,
+                )
+            }
         }
     }
 
@@ -253,6 +288,8 @@ class PlayerViewModel(
                 imageUri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION,
             )
+        }.onFailure { throwable ->
+            Timber.w(throwable, "未使用画像 URI 権限の解放に失敗しました uriScheme=%s", imageUri.scheme)
         }
     }
 

@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 class TrackListViewModel(
     private val albumId: Long,
@@ -58,7 +59,8 @@ class TrackListViewModel(
                         tracks = tracks,
                     )
                 }
-            }.onFailure {
+            }.onFailure { throwable ->
+                Timber.e(throwable, "アルバムのトラック取得に失敗しました albumId=%d", albumId)
                 _uiState.update { state ->
                     state.copy(
                         isLoading = false,
@@ -78,7 +80,13 @@ class TrackListViewModel(
                     AddTrackResult.Added -> "プレイリストに追加しました"
                 }
                 _uiState.update { it.copy(playlistMessage = message) }
-            }.onFailure {
+            }.onFailure { throwable ->
+                Timber.e(
+                    throwable,
+                    "トラックのプレイリスト追加に失敗しました playlistId=%d trackId=%d",
+                    playlistId,
+                    trackId,
+                )
                 _uiState.update { it.copy(playlistMessage = "プレイリストへの追加に失敗しました") }
             }
         }
@@ -93,7 +101,8 @@ class TrackListViewModel(
                 playlistRepository.addTrack(playlistId, trackId)
             }.onSuccess {
                 _uiState.update { it.copy(playlistMessage = "プレイリストを作成して追加しました") }
-            }.onFailure {
+            }.onFailure { throwable ->
+                Timber.e(throwable, "プレイリスト作成後のトラック追加に失敗しました trackId=%d", trackId)
                 _uiState.update { it.copy(playlistMessage = "プレイリストの作成に失敗しました") }
             }
         }

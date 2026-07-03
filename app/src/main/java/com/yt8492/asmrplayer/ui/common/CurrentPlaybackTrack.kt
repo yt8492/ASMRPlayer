@@ -12,6 +12,7 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.yt8492.asmrplayer.service.PlaybackService
+import timber.log.Timber
 
 @Composable
 fun rememberCurrentPlaybackTrackId(): State<Long?> {
@@ -43,7 +44,8 @@ fun rememberCurrentPlaybackTrackId(): State<Long?> {
                             updateCurrentTrackId()
                         }
                     }.also(mediaController::addListener)
-                }.onFailure {
+                }.onFailure { throwable ->
+                    Timber.e(throwable, "現在再生トラック監視用 MediaController の接続に失敗しました")
                     currentTrackId.value = null
                 }
             },

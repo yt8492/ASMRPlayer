@@ -112,6 +112,7 @@ import com.yt8492.asmrplayer.ui.common.SingleLineMarqueeText
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 @Composable
 fun PlayerRoute(
@@ -151,7 +152,8 @@ fun PlayerRoute(
                     controllerFuture.get()
                 }.onSuccess {
                     controller = it
-                }.onFailure {
+                }.onFailure { throwable ->
+                    Timber.e(throwable, "プレイヤー用 MediaController の接続に失敗しました")
                     controllerError = true
                 }
             },
@@ -229,6 +231,12 @@ fun PlayerRoute(
         ctl.prepare()
         ctl.playWhenReady = true
         isInitialQueuePrepared = true
+        Timber.i(
+            "再生キューを準備しました queue=%s itemCount=%d startIndex=%d",
+            queue.logType(),
+            mediaItems.size,
+            startIndex,
+        )
     }
 
     if (controllerError) {
@@ -358,6 +366,8 @@ fun PlayerScreen(
                 imageUri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION,
             )
+        }.onFailure { throwable ->
+            Timber.w(throwable, "画像の永続 URI 権限取得に失敗しました uriScheme=%s", imageUri.scheme)
         }.isSuccess
         if (!permissionTaken) return@rememberLauncherForActivityResult
         when (target) {

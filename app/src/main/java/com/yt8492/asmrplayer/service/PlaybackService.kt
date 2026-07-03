@@ -17,6 +17,7 @@ import androidx.media3.session.MediaSessionService
 import androidx.media3.ui.PlayerNotificationManager
 import com.yt8492.asmrplayer.MainActivity
 import com.yt8492.asmrplayer.R
+import timber.log.Timber
 
 @OptIn(UnstableApi::class)
 class PlaybackService : MediaSessionService() {
@@ -26,6 +27,7 @@ class PlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
+        Timber.i("PlaybackService created")
         val exoPlayer = ExoPlayer.Builder(this).build().apply {
             setAudioAttributes(
                 AudioAttributes.Builder()
@@ -98,6 +100,11 @@ class PlaybackService : MediaSessionService() {
                 }
 
                 override fun onNotificationCancelled(notificationId: Int, dismissedByUser: Boolean) {
+                    Timber.i(
+                        "Playback notification cancelled notificationId=%d dismissedByUser=%s",
+                        notificationId,
+                        dismissedByUser,
+                    )
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     player?.pause()
                     stopSelf()
@@ -116,6 +123,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        Timber.i("PlaybackService destroyed")
         notificationManager?.setPlayer(null)
         notificationManager = null
         mediaSession?.release()

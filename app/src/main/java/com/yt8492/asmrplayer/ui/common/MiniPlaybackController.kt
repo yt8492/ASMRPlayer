@@ -53,6 +53,7 @@ import com.yt8492.asmrplayer.data.repository.TrackArtworkRepositoryImpl
 import com.yt8492.asmrplayer.navigation.PlaybackDestination
 import com.yt8492.asmrplayer.service.PlaybackService
 import kotlinx.coroutines.flow.collectLatest
+import timber.log.Timber
 
 @Composable
 fun MiniPlaybackController(
@@ -152,7 +153,8 @@ private fun rememberMiniPlaybackState(): State<MiniPlaybackState?> {
                             updateState()
                         }
                     }.also(mediaController::addListener)
-                }.onFailure {
+                }.onFailure { throwable ->
+                    Timber.e(throwable, "ミニプレイヤー用 MediaController の接続に失敗しました")
                     state.value = null
                 }
             },

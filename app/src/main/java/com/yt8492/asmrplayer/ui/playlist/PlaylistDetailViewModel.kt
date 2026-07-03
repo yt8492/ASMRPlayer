@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 class PlaylistDetailViewModel(
     private val playlistId: Long,
@@ -51,7 +52,8 @@ class PlaylistDetailViewModel(
                             errorMessage = null,
                         )
                     }
-                }.onFailure {
+                }.onFailure { throwable ->
+                    Timber.e(throwable, "プレイリスト詳細の取得に失敗しました playlistId=%d", playlistId)
                     _uiState.update { state ->
                         state.copy(
                             isLoading = false,
@@ -69,7 +71,13 @@ class PlaylistDetailViewModel(
         viewModelScope.launch {
             runCatching {
                 playlistRepository.removeTrack(playlistId, playlistTrackId)
-            }.onFailure {
+            }.onFailure { throwable ->
+                Timber.e(
+                    throwable,
+                    "プレイリストからのトラック削除に失敗しました playlistId=%d playlistTrackId=%d",
+                    playlistId,
+                    playlistTrackId,
+                )
                 _uiState.update { state ->
                     state.copy(errorMessage = "トラックの削除に失敗しました")
                 }
@@ -83,7 +91,8 @@ class PlaylistDetailViewModel(
         viewModelScope.launch {
             runCatching {
                 playlistRepository.renamePlaylist(playlistId, trimmedName)
-            }.onFailure {
+            }.onFailure { throwable ->
+                Timber.e(throwable, "プレイリスト名の変更に失敗しました playlistId=%d", playlistId)
                 _uiState.update { state ->
                     state.copy(errorMessage = "プレイリスト名の変更に失敗しました")
                 }
@@ -108,7 +117,8 @@ class PlaylistDetailViewModel(
         viewModelScope.launch {
             runCatching {
                 playlistRepository.replaceTrackOrder(playlistId, playlistTrackIds)
-            }.onFailure {
+            }.onFailure { throwable ->
+                Timber.e(throwable, "プレイリスト曲順の保存に失敗しました playlistId=%d", playlistId)
                 _uiState.update { state ->
                     state.copy(errorMessage = "曲順の保存に失敗しました")
                 }

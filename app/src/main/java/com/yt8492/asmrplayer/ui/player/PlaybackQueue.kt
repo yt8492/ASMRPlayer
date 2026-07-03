@@ -17,3 +17,11 @@ sealed interface PlaybackQueue {
         val directoryTitle: String,
     ) : PlaybackQueue
 }
+
+internal fun PlaybackQueue.logType(): String {
+    return when (this) {
+        is PlaybackQueue.Album -> "album"
+        is PlaybackQueue.Playlist -> "playlist"
+        is PlaybackQueue.Folder -> "folder"
+    }
+}

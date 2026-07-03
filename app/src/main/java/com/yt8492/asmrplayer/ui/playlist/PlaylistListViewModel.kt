@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 class PlaylistListViewModel(
     private val playlistRepository: PlaylistRepository,
@@ -33,7 +34,8 @@ class PlaylistListViewModel(
         viewModelScope.launch {
             runCatching {
                 playlistRepository.createPlaylist(trimmedName)
-            }.onFailure {
+            }.onFailure { throwable ->
+                Timber.e(throwable, "プレイリストの作成に失敗しました")
                 _uiState.update { state ->
                     state.copy(errorMessage = "プレイリストの作成に失敗しました")
                 }
@@ -47,7 +49,8 @@ class PlaylistListViewModel(
         viewModelScope.launch {
             runCatching {
                 playlistRepository.renamePlaylist(playlistId, trimmedName)
-            }.onFailure {
+            }.onFailure { throwable ->
+                Timber.e(throwable, "プレイリスト名の変更に失敗しました playlistId=%d", playlistId)
                 _uiState.update { state ->
                     state.copy(errorMessage = "プレイリスト名の変更に失敗しました")
                 }
@@ -59,7 +62,8 @@ class PlaylistListViewModel(
         viewModelScope.launch {
             runCatching {
                 playlistRepository.deletePlaylist(playlistId)
-            }.onFailure {
+            }.onFailure { throwable ->
+                Timber.e(throwable, "プレイリストの削除に失敗しました playlistId=%d", playlistId)
                 _uiState.update { state ->
                     state.copy(errorMessage = "プレイリストの削除に失敗しました")
                 }
