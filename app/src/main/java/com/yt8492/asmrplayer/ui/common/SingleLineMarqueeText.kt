@@ -22,7 +22,10 @@ fun SingleLineMarqueeText(
 ) {
     Text(
         text = text,
-        modifier = modifier.basicMarquee(iterations = Int.MAX_VALUE),
+        modifier = modifier.basicMarquee(
+            iterations = Int.MAX_VALUE,
+            initialDelayMillis = 3_000,
+        ),
         style = style,
         color = color,
         textAlign = textAlign,
