@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -77,6 +78,7 @@ import com.yt8492.asmrplayer.data.model.Track
 import coil.compose.AsyncImage
 import com.yt8492.asmrplayer.ui.common.rememberCurrentPlaybackTrackId
 import com.yt8492.asmrplayer.ui.common.SingleLineMarqueeText
+import com.yt8492.asmrplayer.ui.common.TrackInfoDialog
 import java.util.concurrent.TimeUnit
 
 @Composable
@@ -174,6 +176,7 @@ fun FileExplorerScreen(
     var selectedDirectory by remember { mutableStateOf<AudioDirectory?>(null) }
     var directoryForNewPlaylist by remember { mutableStateOf<AudioDirectory?>(null) }
     var previewImage by remember { mutableStateOf<ImageFile?>(null) }
+    var trackForInfo by remember { mutableStateOf<Track?>(null) }
     val isRoot = uiState.currentPath.isEmpty()
     val title = uiState.currentPath.trim('/').substringAfterLast(
         delimiter = '/',
@@ -199,6 +202,7 @@ fun FileExplorerScreen(
             selectedDirectory = null
             directoryForNewPlaylist = null
             previewImage = null
+            trackForInfo = null
         }
     }
 
@@ -273,6 +277,7 @@ fun FileExplorerScreen(
                     onRequestPermission = onRequestPermission,
                     onDirectoryClick = onDirectoryClick,
                     onTrackClick = onTrackClick,
+                    onTrackLongClick = { track -> trackForInfo = track },
                     onImageClick = { image -> previewImage = image },
                     onAddToPlaylistClick = { track -> selectedTrack = track },
                     onAddDirectoryToPlaylistClick = { directory -> selectedDirectory = directory },
@@ -342,6 +347,13 @@ fun FileExplorerScreen(
             onDismiss = { previewImage = null },
         )
     }
+
+    trackForInfo?.let { track ->
+        TrackInfoDialog(
+            track = track,
+            onDismiss = { trackForInfo = null },
+        )
+    }
 }
 
 @Composable
@@ -401,6 +413,7 @@ private fun FileExplorerList(
     onRequestPermission: () -> Unit,
     onDirectoryClick: (String) -> Unit,
     onTrackClick: (Int) -> Unit,
+    onTrackLongClick: (Track) -> Unit,
     onImageClick: (ImageFile) -> Unit,
     onAddToPlaylistClick: (Track) -> Unit,
     onAddDirectoryToPlaylistClick: (AudioDirectory) -> Unit,
@@ -466,7 +479,11 @@ private fun FileExplorerList(
                 MaterialTheme.colorScheme.onSurface
             }
             ListItem(
-                modifier = Modifier.clickable { onTrackClick(index) },
+                modifier = Modifier.combinedClickable(
+                    onClick = { onTrackClick(index) },
+                    onLongClickLabel = stringResource(id = R.string.track_info_show),
+                    onLongClick = { onTrackLongClick(track) },
+                ),
                 leadingContent = {
                     Icon(
                         imageVector = if (isCurrentTrack) Icons.Filled.PlayArrow else Icons.Filled.MusicNote,
@@ -728,6 +745,7 @@ private fun FileExplorerScreenPreview() {
                     title = "サンプルトラック",
                     artist = "サンプルアーティスト",
                     durationMs = 210_000,
+                    fileSizeBytes = 12_345_678,
                     trackNumber = 1,
                     uri = android.net.Uri.EMPTY,
                 ),

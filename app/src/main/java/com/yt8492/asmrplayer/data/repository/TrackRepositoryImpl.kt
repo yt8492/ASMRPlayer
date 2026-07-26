@@ -22,6 +22,7 @@ class TrackRepositoryImpl(
             MediaStore.Audio.Media.ALBUM_ID,
             MediaStore.Audio.Media.ALBUM,
             MediaStore.Audio.Media.DURATION,
+            MediaStore.Audio.Media.SIZE,
             MediaStore.Audio.Media.TRACK,
         )
         val selection = """
@@ -45,6 +46,7 @@ class TrackRepositoryImpl(
             val albumIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
             val albumTitleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
             val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+            val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
             val trackNumberColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
@@ -67,6 +69,7 @@ class TrackRepositoryImpl(
                         albumTitle = albumTitle,
                         albumArtUri = albumArtUri(trackAlbumId),
                         durationMs = durationMs,
+                        fileSizeBytes = cursor.getNullableLong(sizeColumn),
                         trackNumber = trackNumber,
                         uri = contentUri,
                     ),
@@ -96,6 +99,7 @@ class TrackRepositoryImpl(
             add(MediaStore.Audio.Media.ALBUM_ID)
             add(MediaStore.Audio.Media.ALBUM)
             add(MediaStore.Audio.Media.DURATION)
+            add(MediaStore.Audio.Media.SIZE)
             add(MediaStore.Audio.Media.TRACK)
             add(MediaStore.Audio.Media.DISPLAY_NAME)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -138,6 +142,7 @@ class TrackRepositoryImpl(
             val albumIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
             val albumTitleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
             val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+            val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
             val trackNumberColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
             val displayNameColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
             val pathColumn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -168,6 +173,7 @@ class TrackRepositoryImpl(
                         albumTitle = cursor.getString(albumTitleColumn).orEmpty(),
                         albumArtUri = albumArtUri(albumId),
                         durationMs = cursor.getLong(durationColumn),
+                        fileSizeBytes = cursor.getNullableLong(sizeColumn),
                         trackNumber = cursor.getInt(trackNumberColumn),
                         uri = contentUri,
                     ),
@@ -185,6 +191,7 @@ class TrackRepositoryImpl(
             MediaStore.Audio.Media.ALBUM_ID,
             MediaStore.Audio.Media.ALBUM,
             MediaStore.Audio.Media.DURATION,
+            MediaStore.Audio.Media.SIZE,
             MediaStore.Audio.Media.TRACK,
         )
         val placeholders = trackIds.joinToString(",") { "?" }
@@ -207,6 +214,7 @@ class TrackRepositoryImpl(
             val albumIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
             val albumTitleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
             val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+            val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
             val trackNumberColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
@@ -222,6 +230,7 @@ class TrackRepositoryImpl(
                     albumTitle = cursor.getString(albumTitleColumn).orEmpty(),
                     albumArtUri = albumArtUri(cursor.getLong(albumIdColumn)),
                     durationMs = cursor.getLong(durationColumn),
+                    fileSizeBytes = cursor.getNullableLong(sizeColumn),
                     trackNumber = cursor.getInt(trackNumberColumn),
                     uri = contentUri,
                 )
@@ -231,6 +240,10 @@ class TrackRepositoryImpl(
 
     private fun albumArtUri(albumId: Long): Uri {
         return ContentUris.withAppendedId(ALBUM_ART_CONTENT_URI, albumId)
+    }
+
+    private fun android.database.Cursor.getNullableLong(columnIndex: Int): Long? {
+        return if (isNull(columnIndex)) null else getLong(columnIndex)
     }
 
     private fun normalizeLegacyDirectoryPath(dataPath: String): String {

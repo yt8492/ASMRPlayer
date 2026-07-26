@@ -8,6 +8,12 @@
     <string name="track_list_empty">このアルバムのトラックが見つかりません</string>
     <string name="track_list_retry">再読み込み</string>
     <string name="track_list_back">戻る</string>
+    <string name="track_info_title">トラック情報</string>
+    <string name="track_info_track_title">タイトル</string>
+    <string name="track_info_file_size">ファイルサイズ</string>
+    <string name="track_info_duration">再生時間</string>
+    <string name="track_info_unknown">不明</string>
+    <string name="track_info_show">トラック情報を表示</string>
     <string name="player_no_track">トラックがありません</string>
     <string name="player_play">再生</string>
     <string name="player_pause">一時停止</string>
@@ -74,4 +80,5 @@
     <string name="common_done">完了</string>
     <string name="common_save">保存</string>
     <string name="common_cancel">キャンセル</string>
+    <string name="common_close">閉じる</string>
 </resources>

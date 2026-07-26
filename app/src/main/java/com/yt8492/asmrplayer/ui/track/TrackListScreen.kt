@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,6 +63,7 @@ import com.yt8492.asmrplayer.data.model.Album
 import com.yt8492.asmrplayer.data.model.Playlist
 import com.yt8492.asmrplayer.data.model.Track
 import com.yt8492.asmrplayer.ui.common.SingleLineMarqueeText
+import com.yt8492.asmrplayer.ui.common.TrackInfoDialog
 import java.util.concurrent.TimeUnit
 
 @Composable
@@ -137,6 +139,7 @@ fun TrackListScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedTrack by remember { mutableStateOf<Track?>(null) }
     var trackForNewPlaylist by remember { mutableStateOf<Track?>(null) }
+    var trackForInfo by remember { mutableStateOf<Track?>(null) }
 
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let { message ->
@@ -204,6 +207,7 @@ fun TrackListScreen(
                     tracks = uiState.tracks,
                     album = uiState.album,
                     onTrackClick = onTrackClick,
+                    onTrackLongClick = { track -> trackForInfo = track },
                     onAddToPlaylistClick = { track -> selectedTrack = track },
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -233,6 +237,13 @@ fun TrackListScreen(
                 onCreatePlaylistAndAddTrack(name, track.id)
                 trackForNewPlaylist = null
             },
+        )
+    }
+
+    trackForInfo?.let { track ->
+        TrackInfoDialog(
+            track = track,
+            onDismiss = { trackForInfo = null },
         )
     }
 }
@@ -290,6 +301,7 @@ private fun TrackList(
     tracks: List<Track>,
     album: Album,
     onTrackClick: (index: Int) -> Unit,
+    onTrackLongClick: (Track) -> Unit,
     onAddToPlaylistClick: (Track) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -326,7 +338,11 @@ private fun TrackList(
                 modifier = Modifier
                     .padding(horizontal = 12.dp)
                     .clip(MaterialTheme.shapes.large)
-                    .clickable { onTrackClick(index) },
+                    .combinedClickable(
+                        onClick = { onTrackClick(index) },
+                        onLongClickLabel = stringResource(id = R.string.track_info_show),
+                        onLongClick = { onTrackLongClick(track) },
+                    ),
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                 leadingContent = {
                     Text(
@@ -481,6 +497,7 @@ private fun TrackListScreenPreview() {
                     title = "サンプルトラック",
                     artist = "サンプルアーティスト",
                     durationMs = 210_000,
+                    fileSizeBytes = 12_345_678,
                     trackNumber = 1,
                     uri = android.net.Uri.EMPTY,
                 ),

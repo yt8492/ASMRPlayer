@@ -5,7 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -57,7 +57,9 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yt8492.asmrplayer.R
+import com.yt8492.asmrplayer.data.model.Track
 import com.yt8492.asmrplayer.ui.common.SingleLineMarqueeText
+import com.yt8492.asmrplayer.ui.common.TrackInfoDialog
 import com.yt8492.asmrplayer.ui.common.rememberCurrentPlaybackTrackId
 import java.util.concurrent.TimeUnit
 
@@ -135,6 +137,7 @@ fun PlaylistDetailScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val currentPlaybackTrackId by rememberCurrentPlaybackTrackId()
     var isRenameDialogVisible by remember { mutableStateOf(false) }
+    var trackForInfo by remember { mutableStateOf<Track?>(null) }
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
@@ -204,6 +207,7 @@ fun PlaylistDetailScreen(
                     playlistTracks = uiState.playlistTracks,
                     isEditMode = uiState.isEditMode,
                     onTrackClick = onTrackClick,
+                    onTrackLongClick = { track -> trackForInfo = track },
                     onRemoveTrack = onRemoveTrack,
                     onMoveTrack = onMoveTrack,
                     onDragFinished = onDragFinished,
@@ -224,6 +228,13 @@ fun PlaylistDetailScreen(
                 isRenameDialogVisible = false
             },
             confirmText = stringResource(id = R.string.common_save),
+        )
+    }
+
+    trackForInfo?.let { track ->
+        TrackInfoDialog(
+            track = track,
+            onDismiss = { trackForInfo = null },
         )
     }
 }
@@ -259,6 +270,7 @@ private fun ReorderableTrackList(
     playlistTracks: List<PlaylistTrackItem>,
     isEditMode: Boolean,
     onTrackClick: (Int) -> Unit,
+    onTrackLongClick: (Track) -> Unit,
     onRemoveTrack: (Long) -> Unit,
     onMoveTrack: (fromIndex: Int, toIndex: Int) -> Unit,
     onDragFinished: () -> Unit,
@@ -292,7 +304,11 @@ private fun ReorderableTrackList(
                         if (isEditMode) {
                             Modifier
                         } else {
-                            Modifier.clickable { onTrackClick(index) }
+                            Modifier.combinedClickable(
+                                onClick = { onTrackClick(index) },
+                                onLongClickLabel = stringResource(id = R.string.track_info_show),
+                                onLongClick = { onTrackLongClick(track) },
+                            )
                         },
                     ),
                 leadingContent = {

@@ -10,6 +10,7 @@ data class Track(
     val albumTitle: String = "",
     val albumArtUri: Uri? = null,
     val durationMs: Long,
+    val fileSizeBytes: Long?,
     val trackNumber: Int,
     val uri: Uri,
 )

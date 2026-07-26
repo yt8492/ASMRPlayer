@@ -66,6 +66,7 @@ class FileExplorerRepositoryImpl(
             add(MediaStore.Audio.Media.ALBUM_ID)
             add(MediaStore.Audio.Media.ALBUM)
             add(MediaStore.Audio.Media.DURATION)
+            add(MediaStore.Audio.Media.SIZE)
             add(MediaStore.Audio.Media.TRACK)
             add(MediaStore.Audio.Media.DISPLAY_NAME)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -89,6 +90,7 @@ class FileExplorerRepositoryImpl(
             val albumIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
             val albumTitleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
             val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+            val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
             val trackNumberColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
             val displayNameColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
             val pathColumn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -123,6 +125,7 @@ class FileExplorerRepositoryImpl(
                             albumTitle = cursor.getString(albumTitleColumn).orEmpty(),
                             albumArtUri = albumArtUri(albumId),
                             durationMs = cursor.getLong(durationColumn),
+                            fileSizeBytes = cursor.getNullableLong(sizeColumn),
                             trackNumber = cursor.getInt(trackNumberColumn),
                             uri = contentUri,
                         ),
@@ -223,6 +226,10 @@ class FileExplorerRepositoryImpl(
 
     private fun albumArtUri(albumId: Long): Uri {
         return ContentUris.withAppendedId(ALBUM_ART_CONTENT_URI, albumId)
+    }
+
+    private fun Cursor.getNullableLong(columnIndex: Int): Long? {
+        return if (isNull(columnIndex)) null else getLong(columnIndex)
     }
 
     private data class AudioFileItem(
