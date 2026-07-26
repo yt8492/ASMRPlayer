@@ -13,6 +13,7 @@ import com.yt8492.asmrplayer.data.repository.PlaylistRepositoryImpl
 import com.yt8492.asmrplayer.data.repository.TrackRepository
 import com.yt8492.asmrplayer.data.repository.TrackRepositoryImpl
 import com.yt8492.asmrplayer.data.repository.normalizeDirectoryPath
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -65,6 +66,67 @@ class FileExplorerViewModel(
                     it.copy(
                         isLoading = false,
                         errorMessage = "ファイルの取得に失敗しました",
+                    )
+                }
+            }
+        }
+    }
+
+    fun refreshContent() {
+        if (_uiState.value.isLoading || _uiState.value.isRefreshing) return
+        val currentPath = _uiState.value.currentPath
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isRefreshing = true,
+                    errorMessage = null,
+                )
+            }
+            runCatching {
+                if (currentPath.isNotEmpty()) {
+                    val scanCompleted = runCatching {
+                        repository.scanDirectory(currentPath)
+                    }.onFailure { throwable ->
+                        if (throwable is CancellationException) throw throwable
+                        Timber.w(
+                            throwable,
+                            "フォルダのメディアスキャンに失敗しました pathLength=%d",
+                            currentPath.length,
+                        )
+                    }.getOrDefault(false)
+                    if (!scanCompleted) {
+                        Timber.w(
+                            "フォルダのメディアスキャンが完了しませんでした pathLength=%d",
+                            currentPath.length,
+                        )
+                    }
+                }
+                repository.getContent(currentPath)
+            }.onSuccess { content ->
+                _uiState.update { state ->
+                    if (state.currentPath != currentPath) {
+                        state.copy(isRefreshing = false)
+                    } else {
+                        state.copy(
+                            isRefreshing = false,
+                            currentPath = content.currentPath,
+                            directories = content.directories,
+                            tracks = content.tracks,
+                            images = content.images,
+                        )
+                    }
+                }
+            }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
+                Timber.e(throwable, "ファイル一覧の再取得に失敗しました pathLength=%d", currentPath.length)
+                _uiState.update { state ->
+                    state.copy(
+                        isRefreshing = false,
+                        errorMessage = if (state.currentPath == currentPath) {
+                            "ファイルの取得に失敗しました"
+                        } else {
+                            state.errorMessage
+                        },
                     )
                 }
             }

@@ -7,6 +7,7 @@ import com.yt8492.asmrplayer.data.model.Track
 
 data class FileExplorerUiState(
     val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
     val currentPath: String = "",
     val directories: List<AudioDirectory> = emptyList(),
     val tracks: List<Track> = emptyList(),

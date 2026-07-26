@@ -133,6 +133,7 @@ class TrackInfoDialogTest {
                     hasMissingPermission = false,
                     onRequestPermission = {},
                     onRetry = {},
+                    onRefresh = {},
                     onDirectoryClick = {},
                     onBack = {},
                     onTrackClick = { clickedIndex = it },

@@ -3,17 +3,24 @@ package com.yt8492.asmrplayer.data.repository
 import android.content.ContentUris
 import android.content.Context
 import android.database.Cursor
+import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.storage.StorageManager
 import android.provider.MediaStore
 import com.yt8492.asmrplayer.data.model.AudioDirectory
 import com.yt8492.asmrplayer.data.model.FileExplorerContent
 import com.yt8492.asmrplayer.data.model.ImageFile
 import com.yt8492.asmrplayer.data.model.Track
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 class FileExplorerRepositoryImpl(
     private val context: Context,
@@ -56,6 +63,61 @@ class FileExplorerRepositoryImpl(
             tracks = tracks,
             images = images,
         )
+    }
+
+    override suspend fun scanDirectory(directoryPath: String): Boolean = withContext(Dispatchers.IO) {
+        val directories = resolveDirectoriesToScan(
+            storageRoots = getSharedStorageRoots(),
+            directoryPath = directoryPath,
+        )
+        if (directories.isEmpty()) return@withContext false
+
+        withTimeoutOrNull(MEDIA_SCAN_TIMEOUT_MILLIS) {
+            suspendCancellableCoroutine { continuation ->
+                val remainingCallbacks = AtomicInteger(directories.size)
+                try {
+                    MediaScannerConnection.scanFile(
+                        context,
+                        directories.map { it.absolutePath }.toTypedArray(),
+                        null,
+                    ) { _, _ ->
+                        if (remainingCallbacks.decrementAndGet() == 0 && continuation.isActive) {
+                            continuation.resume(Unit)
+                        }
+                    }
+                } catch (throwable: Throwable) {
+                    if (continuation.isActive) {
+                        continuation.resumeWithException(throwable)
+                    }
+                }
+            }
+        } != null
+    }
+
+    private fun getSharedStorageRoots(): List<File> {
+        val volumeRoots = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            context.getSystemService(StorageManager::class.java)
+                .storageVolumes
+                .filter { volume ->
+                    volume.state == Environment.MEDIA_MOUNTED ||
+                        volume.state == Environment.MEDIA_MOUNTED_READ_ONLY
+                }
+                .mapNotNull { it.directory }
+        } else {
+            context.getExternalFilesDirs(null)
+                .mapNotNull { externalFilesDir ->
+                    storageRootFromExternalFilesDir(
+                        externalFilesDir = externalFilesDir,
+                        packageName = context.packageName,
+                    )
+                }
+        }
+
+        @Suppress("DEPRECATION")
+        val primaryStorageRoot = Environment.getExternalStorageDirectory()
+        return (volumeRoots + primaryStorageRoot)
+            .mapNotNull { root -> runCatching { root.canonicalFile }.getOrNull() }
+            .distinctBy { it.absolutePath }
     }
 
     private fun queryAudioFiles(onItem: (AudioFileItem) -> Unit) {
@@ -254,6 +316,7 @@ class FileExplorerRepositoryImpl(
     )
 
     companion object {
+        private const val MEDIA_SCAN_TIMEOUT_MILLIS = 30_000L
         private val ALBUM_ART_CONTENT_URI = Uri.parse("content://media/external/audio/albumart")
     }
 }
@@ -265,4 +328,43 @@ fun normalizeDirectoryPath(path: String): String {
     } else {
         "$trimmedPath/"
     }
+}
+
+internal fun resolveDirectoryToScan(storageRoot: File, directoryPath: String): File? {
+    val normalizedPath = normalizeDirectoryPath(directoryPath)
+    if (normalizedPath.isEmpty()) return null
+
+    val canonicalRoot = storageRoot.canonicalFile
+    val canonicalDirectory = File(canonicalRoot, normalizedPath).canonicalFile
+    val rootPrefix = canonicalRoot.absolutePath.trimEnd(File.separatorChar) + File.separator
+    return canonicalDirectory.takeIf { directory ->
+        directory.absolutePath.startsWith(rootPrefix)
+    }
+}
+
+internal fun resolveDirectoriesToScan(
+    storageRoots: List<File>,
+    directoryPath: String,
+): List<File> {
+    return storageRoots
+        .mapNotNull { storageRoot -> resolveDirectoryToScan(storageRoot, directoryPath) }
+        .distinctBy { it.absolutePath }
+}
+
+internal fun storageRootFromExternalFilesDir(
+    externalFilesDir: File,
+    packageName: String,
+): File? {
+    val packageDirectory = externalFilesDir.parentFile ?: return null
+    val dataDirectory = packageDirectory.parentFile ?: return null
+    val androidDirectory = dataDirectory.parentFile ?: return null
+    if (
+        externalFilesDir.name != "files" ||
+        packageDirectory.name != packageName ||
+        dataDirectory.name != "data" ||
+        androidDirectory.name != "Android"
+    ) {
+        return null
+    }
+    return androidDirectory.parentFile
 }

@@ -23,6 +23,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
@@ -49,6 +51,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
@@ -63,6 +66,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -126,7 +130,8 @@ fun FileExplorerRoute(
         hasPermission = mediaPermissionState.hasAnyPermission,
         hasMissingPermission = mediaPermissionState.hasMissingPermission,
         onRequestPermission = { permissionLauncher.launch(permissions) },
-        onRetry = viewModel::loadContent,
+        onRetry = viewModel::refreshContent,
+        onRefresh = viewModel::refreshContent,
         onDirectoryClick = viewModel::openDirectory,
         onBack = viewModel::openParentDirectory,
         onTrackClick = { index ->
@@ -156,6 +161,7 @@ fun FileExplorerScreen(
     hasMissingPermission: Boolean,
     onRequestPermission: () -> Unit,
     onRetry: () -> Unit,
+    onRefresh: () -> Unit,
     onDirectoryClick: (String) -> Unit,
     onBack: () -> Unit,
     onTrackClick: (Int) -> Unit,
@@ -246,45 +252,57 @@ fun FileExplorerScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = bottomBar,
     ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .padding(innerPadding)
-                .fillMaxSize(),
-        ) {
-            when {
-                !hasPermission -> PermissionRequest(
+        if (!hasPermission) {
+            Box(
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .fillMaxSize(),
+            ) {
+                PermissionRequest(
                     onRequestPermission = onRequestPermission,
                     modifier = Modifier.align(Alignment.Center),
                 )
+            }
+        } else {
+            PullToRefreshBox(
+                isRefreshing = uiState.isRefreshing,
+                onRefresh = onRefresh,
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .fillMaxSize()
+                    .testTag(FILE_EXPLORER_PULL_TO_REFRESH_TAG),
+            ) {
+                when {
+                    uiState.isLoading -> Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator()
+                    }
 
-                uiState.isLoading -> Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator()
+                    uiState.directories.isEmpty() && uiState.tracks.isEmpty() && uiState.images.isEmpty() ->
+                        EmptyFileExplorer(
+                            onRetry = onRetry,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+
+                    else -> FileExplorerList(
+                        directories = uiState.directories,
+                        tracks = uiState.tracks,
+                        images = uiState.images,
+                        hasMissingPermission = hasMissingPermission,
+                        onRequestPermission = onRequestPermission,
+                        onDirectoryClick = onDirectoryClick,
+                        onTrackClick = onTrackClick,
+                        onTrackLongClick = { track -> trackForInfo = track },
+                        onImageClick = { image -> previewImage = image },
+                        onAddToPlaylistClick = { track -> selectedTrack = track },
+                        onAddDirectoryToPlaylistClick = { directory -> selectedDirectory = directory },
+                        currentPlaybackTrackId = currentPlaybackTrackId,
+                        resetRequestKey = resetRequestKey,
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 }
-
-                uiState.directories.isEmpty() && uiState.tracks.isEmpty() && uiState.images.isEmpty() -> EmptyFileExplorer(
-                    onRetry = onRetry,
-                    modifier = Modifier.align(Alignment.Center),
-                )
-
-                else -> FileExplorerList(
-                    directories = uiState.directories,
-                    tracks = uiState.tracks,
-                    images = uiState.images,
-                    hasMissingPermission = hasMissingPermission,
-                    onRequestPermission = onRequestPermission,
-                    onDirectoryClick = onDirectoryClick,
-                    onTrackClick = onTrackClick,
-                    onTrackLongClick = { track -> trackForInfo = track },
-                    onImageClick = { image -> previewImage = image },
-                    onAddToPlaylistClick = { track -> selectedTrack = track },
-                    onAddDirectoryToPlaylistClick = { directory -> selectedDirectory = directory },
-                    currentPlaybackTrackId = currentPlaybackTrackId,
-                    resetRequestKey = resetRequestKey,
-                    modifier = Modifier.fillMaxSize(),
-                )
             }
         }
     }
@@ -389,6 +407,7 @@ private fun EmptyFileExplorer(
 ) {
     Column(
         modifier = modifier
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp)
             .fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
@@ -763,6 +782,7 @@ private fun FileExplorerScreenPreview() {
         hasMissingPermission = false,
         onRequestPermission = {},
         onRetry = {},
+        onRefresh = {},
         onDirectoryClick = {},
         onBack = {},
         onTrackClick = {},
@@ -774,6 +794,8 @@ private fun FileExplorerScreenPreview() {
         onPlaylistMessageShown = {},
     )
 }
+
+internal const val FILE_EXPLORER_PULL_TO_REFRESH_TAG = "file_explorer_pull_to_refresh"
 
 private data class MediaPermissionState(
     val hasAnyPermission: Boolean,
