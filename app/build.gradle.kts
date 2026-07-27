@@ -15,8 +15,8 @@ android {
         applicationId = "com.yt8492.asmrplayer"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.0"
+        versionCode = 4
+        versionName = "0.0.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
