@@ -13,6 +13,8 @@ import com.yt8492.asmrplayer.data.repository.PlaylistRepositoryImpl
 import com.yt8492.asmrplayer.data.repository.TrackRepository
 import com.yt8492.asmrplayer.data.repository.TrackRepositoryImpl
 import com.yt8492.asmrplayer.data.repository.normalizeDirectoryPath
+import kotlinx.coroutines.Job
+import com.yt8492.asmrplayer.data.repository.DocumentPath
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,6 +31,9 @@ class FileExplorerViewModel(
     private val _uiState = MutableStateFlow(FileExplorerUiState())
     val uiState: StateFlow<FileExplorerUiState> = _uiState.asStateFlow()
 
+    private var loadJob: Job? = null
+    private var refreshJob: Job? = null
+
     init {
         viewModelScope.launch {
             playlistRepository.observePlaylists().collect { playlists ->
@@ -38,13 +43,20 @@ class FileExplorerViewModel(
     }
 
     fun loadContent(directoryPath: String = _uiState.value.currentPath) {
-        if (_uiState.value.isLoading) return
+        loadJob?.cancel()
+        refreshJob?.cancel()
         val normalizedPath = normalizeDirectoryPath(directoryPath)
-        viewModelScope.launch {
+        loadJob = viewModelScope.launch {
             _uiState.update {
                 it.copy(
                     isLoading = true,
+                    isRefreshing = false,
                     currentPath = normalizedPath,
+                    directoryTitle = null,
+                    parentPath = if (DocumentPath.isDocumentPath(normalizedPath)) "" else null,
+                    directories = emptyList(),
+                    tracks = emptyList(),
+                    images = emptyList(),
                     errorMessage = null,
                 )
             }
@@ -55,17 +67,20 @@ class FileExplorerViewModel(
                     it.copy(
                         isLoading = false,
                         currentPath = content.currentPath,
+                        directoryTitle = content.directoryTitle,
+                        parentPath = content.parentPath,
                         directories = content.directories,
                         tracks = content.tracks,
                         images = content.images,
                     )
                 }
             }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
                 Timber.e(throwable, "ファイル一覧の取得に失敗しました pathLength=%d", normalizedPath.length)
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        errorMessage = "ファイルの取得に失敗しました",
+                        errorMessage = "フォルダを読み込めません。設定でアクセス許可と保存先を確認してください。",
                     )
                 }
             }
@@ -75,7 +90,7 @@ class FileExplorerViewModel(
     fun refreshContent() {
         if (_uiState.value.isLoading || _uiState.value.isRefreshing) return
         val currentPath = _uiState.value.currentPath
-        viewModelScope.launch {
+        refreshJob = viewModelScope.launch {
             _uiState.update {
                 it.copy(
                     isRefreshing = true,
@@ -83,7 +98,9 @@ class FileExplorerViewModel(
                 )
             }
             runCatching {
-                if (currentPath.isNotEmpty()) {
+                if (DocumentPath.isDocumentPath(currentPath)) {
+                    repository.scanDirectory(currentPath)
+                } else if (currentPath.isNotEmpty()) {
                     val scanCompleted = runCatching {
                         repository.scanDirectory(currentPath)
                     }.onFailure { throwable ->
@@ -110,6 +127,8 @@ class FileExplorerViewModel(
                         state.copy(
                             isRefreshing = false,
                             currentPath = content.currentPath,
+                            directoryTitle = content.directoryTitle,
+                            parentPath = content.parentPath,
                             directories = content.directories,
                             tracks = content.tracks,
                             images = content.images,
@@ -142,6 +161,10 @@ class FileExplorerViewModel(
     }
 
     fun openParentDirectory() {
+        _uiState.value.parentPath?.let {
+            loadContent(it)
+            return
+        }
         val currentPath = _uiState.value.currentPath.trim('/')
         if (currentPath.isEmpty()) return
         val parentPath = currentPath.substringBeforeLast('/', missingDelimiterValue = "")

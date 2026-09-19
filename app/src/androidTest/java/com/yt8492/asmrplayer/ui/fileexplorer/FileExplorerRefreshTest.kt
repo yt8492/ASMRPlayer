@@ -23,9 +23,6 @@ class FileExplorerRefreshTest {
             MaterialTheme {
                 FileExplorerScreen(
                     uiState = FileExplorerUiState(currentPath = "Music/Test/"),
-                    hasPermission = true,
-                    hasMissingPermission = false,
-                    onRequestPermission = {},
                     onRetry = {},
                     onRefresh = { refreshCount += 1 },
                     onDirectoryClick = {},

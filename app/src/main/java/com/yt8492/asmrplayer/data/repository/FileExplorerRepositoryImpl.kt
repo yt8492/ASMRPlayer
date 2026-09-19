@@ -9,9 +9,7 @@ import android.os.Build
 import android.os.Environment
 import android.os.storage.StorageManager
 import android.provider.MediaStore
-import com.yt8492.asmrplayer.data.model.AudioDirectory
 import com.yt8492.asmrplayer.data.model.FileExplorerContent
-import com.yt8492.asmrplayer.data.model.ImageFile
 import com.yt8492.asmrplayer.data.model.Track
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -22,50 +20,35 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-class FileExplorerRepositoryImpl(
+class FileExplorerRepositoryImpl internal constructor(
     private val context: Context,
+    private val folderRepository: LibraryFolderRepository = LibraryFolderRepository(context),
 ) : FileExplorerRepository {
     override suspend fun getContent(directoryPath: String): FileExplorerContent = withContext(Dispatchers.IO) {
-        val currentPath = normalizeDirectoryPath(directoryPath)
-        val directoriesByPath = linkedMapOf<String, AudioDirectoryAccumulator>()
-        val tracks = mutableListOf<Track>()
-        val images = mutableListOf<ImageFile>()
-        queryAudioFiles { item ->
-            if (item.directoryPath == currentPath) {
-                tracks.add(item.track)
-                return@queryAudioFiles
-            }
-
-            val child = directChildDirectory(currentPath, item.directoryPath) ?: return@queryAudioFiles
-            val accumulator = directoriesByPath.getOrPut(child.path) {
-                AudioDirectoryAccumulator(path = child.path, name = child.name)
-            }
-            accumulator.trackCount += 1
-        }
-        queryImageFiles { item ->
-            if (item.directoryPath == currentPath) {
-                images.add(item.image)
-                return@queryImageFiles
-            }
-
-            val child = directChildDirectory(currentPath, item.directoryPath) ?: return@queryImageFiles
-            val accumulator = directoriesByPath.getOrPut(child.path) {
-                AudioDirectoryAccumulator(path = child.path, name = child.name)
-            }
-            accumulator.trackCount += 1
-        }
-
+        DocumentPath.parse(directoryPath)?.let { return@withContext folderRepository.getContent(it) }
         FileExplorerContent(
-            currentPath = currentPath,
-            directories = directoriesByPath.values
-                .map { AudioDirectory(path = it.path, name = it.name, trackCount = it.trackCount) }
-                .sortedBy { it.name.lowercase() },
-            tracks = tracks,
-            images = images,
+            currentPath = "",
+            directories = folderRepository.rootDirectories(),
+            tracks = emptyList(),
+            images = emptyList(),
         )
     }
 
+    // 自動検出で作成された既存の再生キューに限り、従来のパスから音声を取得する。
+    internal suspend fun getMediaStoreTracksInDirectory(directoryPath: String): List<Track> = withContext(Dispatchers.IO) {
+        val currentPath = normalizeDirectoryPath(directoryPath)
+        buildList {
+            queryAudioFiles { item ->
+                if (item.directoryPath == currentPath) add(item.track)
+            }
+        }
+    }
+
     override suspend fun scanDirectory(directoryPath: String): Boolean = withContext(Dispatchers.IO) {
+        DocumentPath.parse(directoryPath)?.let {
+            folderRepository.reloadFolder(it.treeUri)
+            return@withContext true
+        }
         val directories = resolveDirectoriesToScan(
             storageRoots = getSharedStorageRoots(),
             directoryPath = directoryPath,
@@ -121,6 +104,7 @@ class FileExplorerRepositoryImpl(
     }
 
     private fun queryAudioFiles(onItem: (AudioFileItem) -> Unit) {
+        if (!context.hasAudioReadPermission()) return
         val projection = buildList {
             add(MediaStore.Audio.Media._ID)
             add(MediaStore.Audio.Media.TITLE)
@@ -138,7 +122,7 @@ class FileExplorerRepositoryImpl(
                 add(MediaStore.Audio.Media.DATA)
             }
         }.toTypedArray()
-        val selection = "${MediaStore.Audio.Media.IS_MUSIC}!=0"
+        val selection: String? = null
         val sortOrder = "${MediaStore.Audio.Media.DISPLAY_NAME} COLLATE NOCASE ASC"
         queryMediaStore(
             uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
@@ -197,61 +181,6 @@ class FileExplorerRepositoryImpl(
         }
     }
 
-    private fun queryImageFiles(onItem: (ImageFileItem) -> Unit) {
-        val projection = buildList {
-            add(MediaStore.Images.Media._ID)
-            add(MediaStore.Images.Media.DISPLAY_NAME)
-            add(MediaStore.Images.Media.MIME_TYPE)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                add(MediaStore.MediaColumns.RELATIVE_PATH)
-            } else {
-                @Suppress("DEPRECATION")
-                add(MediaStore.Images.Media.DATA)
-            }
-        }.toTypedArray()
-        val sortOrder = "${MediaStore.Images.Media.DISPLAY_NAME} COLLATE NOCASE ASC"
-        queryMediaStore(
-            uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-            projection = projection,
-            sortOrder = sortOrder,
-        ) { cursor ->
-            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
-            val displayNameColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
-            val mimeTypeColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.MIME_TYPE)
-            val pathColumn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.RELATIVE_PATH)
-            } else {
-                @Suppress("DEPRECATION")
-                cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA)
-            }
-
-            while (cursor.moveToNext()) {
-                val id = cursor.getLong(idColumn)
-                val displayName = cursor.getString(displayNameColumn).orEmpty()
-                val contentUri = ContentUris.withAppendedId(
-                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                    id,
-                )
-                val directoryPath = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    normalizeDirectoryPath(cursor.getString(pathColumn).orEmpty())
-                } else {
-                    normalizeLegacyDirectoryPath(cursor.getString(pathColumn).orEmpty())
-                }
-                onItem(
-                    ImageFileItem(
-                        directoryPath = directoryPath,
-                        image = ImageFile(
-                            id = id,
-                            title = displayName,
-                            uri = contentUri,
-                            mimeType = cursor.getString(mimeTypeColumn).orEmpty(),
-                        ),
-                    ),
-                )
-            }
-        }
-    }
-
     private fun queryMediaStore(
         uri: Uri,
         projection: Array<String>,
@@ -259,7 +188,7 @@ class FileExplorerRepositoryImpl(
         sortOrder: String? = null,
         onCursor: (Cursor) -> Unit,
     ) {
-        runCatching {
+        try {
             context.contentResolver.query(
                 uri,
                 projection,
@@ -267,16 +196,9 @@ class FileExplorerRepositoryImpl(
                 null,
                 sortOrder,
             )?.use(onCursor)
+        } catch (_: SecurityException) {
+            // 音声権限が取り消された場合も、選択済みフォルダは利用できる。
         }
-    }
-
-    private fun directChildDirectory(currentPath: String, candidatePath: String): ChildDirectory? {
-        if (!candidatePath.startsWith(currentPath)) return null
-        val remainingPath = candidatePath.removePrefix(currentPath).trim('/')
-        if (remainingPath.isEmpty()) return null
-        val childName = remainingPath.substringBefore('/')
-        val childPath = normalizeDirectoryPath(currentPath + childName)
-        return ChildDirectory(path = childPath, name = childName)
     }
 
     private fun normalizeLegacyDirectoryPath(dataPath: String): String {
@@ -297,22 +219,6 @@ class FileExplorerRepositoryImpl(
     private data class AudioFileItem(
         val directoryPath: String,
         val track: Track,
-    )
-
-    private data class ImageFileItem(
-        val directoryPath: String,
-        val image: ImageFile,
-    )
-
-    private data class ChildDirectory(
-        val path: String,
-        val name: String,
-    )
-
-    private data class AudioDirectoryAccumulator(
-        val path: String,
-        val name: String,
-        var trackCount: Int = 0,
     )
 
     companion object {

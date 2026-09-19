@@ -19,6 +19,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.LocalContext
+import com.yt8492.asmrplayer.data.repository.LibrarySettingsRepository
+import com.yt8492.asmrplayer.ui.settings.SettingsRoute
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -47,6 +51,20 @@ fun AppNavHost(
     navController: NavHostController = rememberNavController(),
     playbackDestination: PlaybackDestination? = null,
 ) {
+    val context = LocalContext.current
+    val settings = remember { LibrarySettingsRepository(context) }
+    var setupComplete by remember { mutableStateOf(settings.isSetupComplete) }
+    if (!setupComplete) {
+        SettingsRoute(
+            isInitialSetup = true,
+            onCompleteSetup = {
+                settings.completeSetup()
+                setupComplete = true
+            },
+        )
+        return
+    }
+
     LaunchedEffect(playbackDestination?.requestId) {
         val destination = playbackDestination ?: return@LaunchedEffect
         navController.navigateToPlaybackDestination(destination)
@@ -107,6 +125,12 @@ fun AppNavHost(
             fadeOut(animationSpec = tween(durationMillis = ScreenFadeDurationMillis))
         },
     ) {
+        composable("settings") {
+            SettingsRoute(
+                onBack = { navController.popBackStack() },
+                bottomBar = bottomBar,
+            )
+        }
         composable("playlist_list") {
             PlaylistListRoute(
                 modifier = Modifier.fillMaxSize(),
@@ -120,6 +144,7 @@ fun AppNavHost(
         }
         composable("file_explorer") {
             FileExplorerRoute(
+                onOpenSettings = { navController.navigate("settings") { launchSingleTop = true } },
                 modifier = Modifier.fillMaxSize(),
                 bottomBar = bottomBar,
                 resetRequestKey = fileExplorerResetRequestKey,

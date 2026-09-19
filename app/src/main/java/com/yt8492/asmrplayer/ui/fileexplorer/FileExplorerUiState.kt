@@ -9,6 +9,8 @@ data class FileExplorerUiState(
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
     val currentPath: String = "",
+    val directoryTitle: String? = null,
+    val parentPath: String? = null,
     val directories: List<AudioDirectory> = emptyList(),
     val tracks: List<Track> = emptyList(),
     val images: List<ImageFile> = emptyList(),

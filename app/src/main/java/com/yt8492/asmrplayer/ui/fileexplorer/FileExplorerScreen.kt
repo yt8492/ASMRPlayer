@@ -1,11 +1,6 @@
 package com.yt8492.asmrplayer.ui.fileexplorer
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -29,12 +24,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -71,7 +66,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.yt8492.asmrplayer.data.repository.DocumentPath
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yt8492.asmrplayer.R
@@ -90,30 +86,17 @@ fun FileExplorerRoute(
     onTrackClick: (directoryPath: String, directoryTitle: String, tracks: List<Track>, index: Int) -> Unit,
     modifier: Modifier = Modifier,
     bottomBar: @Composable () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     resetRequestKey: Int = 0,
     viewModel: FileExplorerViewModel = viewModel(
         factory = FileExplorerViewModel.provideFactory(LocalContext.current),
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
     val rootTitle = stringResource(id = R.string.file_explorer_title)
-    val permissions = remember { fileExplorerPermissions() }
-    var mediaPermissionState by remember { mutableStateOf(context.currentMediaPermissionState()) }
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions(),
-    ) {
-        mediaPermissionState = context.currentMediaPermissionState()
-        if (mediaPermissionState.hasAnyPermission) {
-            viewModel.loadContent()
-        }
-    }
-
-    LaunchedEffect(mediaPermissionState.hasAnyPermission) {
-        mediaPermissionState = context.currentMediaPermissionState()
-        if (mediaPermissionState.hasAnyPermission) {
-            viewModel.loadContent()
-        }
+    LifecycleResumeEffect(Unit) {
+        viewModel.loadContent()
+        onPauseOrDispose { }
     }
     LaunchedEffect(resetRequestKey) {
         if (resetRequestKey > 0) {
@@ -127,18 +110,13 @@ fun FileExplorerRoute(
 
     FileExplorerScreen(
         uiState = uiState,
-        hasPermission = mediaPermissionState.hasAnyPermission,
-        hasMissingPermission = mediaPermissionState.hasMissingPermission,
-        onRequestPermission = { permissionLauncher.launch(permissions) },
+        onOpenSettings = onOpenSettings,
         onRetry = viewModel::refreshContent,
         onRefresh = viewModel::refreshContent,
         onDirectoryClick = viewModel::openDirectory,
         onBack = viewModel::openParentDirectory,
         onTrackClick = { index ->
-            val directoryTitle = uiState.currentPath.trim('/').substringAfterLast(
-                delimiter = '/',
-                missingDelimiterValue = rootTitle,
-            ).ifEmpty { rootTitle }
+            val directoryTitle = uiState.directoryTitle ?: directoryDisplayTitle(uiState.currentPath, rootTitle)
             onTrackClick(uiState.currentPath, directoryTitle, uiState.tracks, index)
         },
         onAddTrackToPlaylist = viewModel::addTrackToPlaylist,
@@ -157,9 +135,6 @@ fun FileExplorerRoute(
 @Composable
 fun FileExplorerScreen(
     uiState: FileExplorerUiState,
-    hasPermission: Boolean,
-    hasMissingPermission: Boolean,
-    onRequestPermission: () -> Unit,
     onRetry: () -> Unit,
     onRefresh: () -> Unit,
     onDirectoryClick: (String) -> Unit,
@@ -172,6 +147,7 @@ fun FileExplorerScreen(
     onErrorShown: () -> Unit,
     onPlaylistMessageShown: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenSettings: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {},
     resetRequestKey: Int = 0,
 ) {
@@ -184,10 +160,7 @@ fun FileExplorerScreen(
     var previewImage by remember { mutableStateOf<ImageFile?>(null) }
     var trackForInfo by remember { mutableStateOf<Track?>(null) }
     val isRoot = uiState.currentPath.isEmpty()
-    val title = uiState.currentPath.trim('/').substringAfterLast(
-        delimiter = '/',
-        missingDelimiterValue = stringResource(id = R.string.file_explorer_title),
-    ).ifEmpty { stringResource(id = R.string.file_explorer_title) }
+    val title = uiState.directoryTitle ?: directoryDisplayTitle(uiState.currentPath, stringResource(R.string.file_explorer_title))
 
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let { message ->
@@ -230,6 +203,9 @@ fun FileExplorerScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Filled.Settings, contentDescription = "設定")
+                    }
                     if (!isRoot) {
                         IconButton(
                             onClick = {
@@ -252,57 +228,42 @@ fun FileExplorerScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = bottomBar,
     ) { innerPadding ->
-        if (!hasPermission) {
-            Box(
-                modifier = Modifier
-                    .padding(innerPadding)
-                    .fillMaxSize(),
-            ) {
-                PermissionRequest(
-                    onRequestPermission = onRequestPermission,
-                    modifier = Modifier.align(Alignment.Center),
-                )
-            }
-        } else {
-            PullToRefreshBox(
-                isRefreshing = uiState.isRefreshing,
-                onRefresh = onRefresh,
-                modifier = Modifier
-                    .padding(innerPadding)
-                    .fillMaxSize()
-                    .testTag(FILE_EXPLORER_PULL_TO_REFRESH_TAG),
-            ) {
-                when {
-                    uiState.isLoading -> Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator()
-                    }
+        PullToRefreshBox(
+            isRefreshing = uiState.isRefreshing,
+            onRefresh = onRefresh,
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .testTag(FILE_EXPLORER_PULL_TO_REFRESH_TAG),
+        ) {
+            when {
+                uiState.isLoading -> Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator()
+                }
 
-                    uiState.directories.isEmpty() && uiState.tracks.isEmpty() && uiState.images.isEmpty() ->
-                        EmptyFileExplorer(
-                            onRetry = onRetry,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-
-                    else -> FileExplorerList(
-                        directories = uiState.directories,
-                        tracks = uiState.tracks,
-                        images = uiState.images,
-                        hasMissingPermission = hasMissingPermission,
-                        onRequestPermission = onRequestPermission,
-                        onDirectoryClick = onDirectoryClick,
-                        onTrackClick = onTrackClick,
-                        onTrackLongClick = { track -> trackForInfo = track },
-                        onImageClick = { image -> previewImage = image },
-                        onAddToPlaylistClick = { track -> selectedTrack = track },
-                        onAddDirectoryToPlaylistClick = { directory -> selectedDirectory = directory },
-                        currentPlaybackTrackId = currentPlaybackTrackId,
-                        resetRequestKey = resetRequestKey,
+                uiState.directories.isEmpty() && uiState.tracks.isEmpty() && uiState.images.isEmpty() ->
+                    EmptyFileExplorer(
+                        onRetry = onRetry,
                         modifier = Modifier.fillMaxSize(),
                     )
-                }
+
+                else -> FileExplorerList(
+                    directories = uiState.directories,
+                    tracks = uiState.tracks,
+                    images = uiState.images,
+                    onDirectoryClick = onDirectoryClick,
+                    onTrackClick = onTrackClick,
+                    onTrackLongClick = { track -> trackForInfo = track },
+                    onImageClick = { image -> previewImage = image },
+                    onAddToPlaylistClick = { track -> selectedTrack = track },
+                    onAddDirectoryToPlaylistClick = { directory -> selectedDirectory = directory },
+                    currentPlaybackTrackId = currentPlaybackTrackId,
+                    resetRequestKey = resetRequestKey,
+                    modifier = Modifier.fillMaxSize(),
+                )
             }
         }
     }
@@ -375,32 +336,6 @@ fun FileExplorerScreen(
 }
 
 @Composable
-private fun PermissionRequest(
-    onRequestPermission: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier
-            .padding(horizontal = 24.dp)
-            .fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = stringResource(id = R.string.file_explorer_permission_title),
-            style = MaterialTheme.typography.titleLarge,
-        )
-        Text(
-            text = stringResource(id = R.string.file_explorer_permission_description),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Button(onClick = onRequestPermission) {
-            Text(text = stringResource(id = R.string.album_permission_button))
-        }
-    }
-}
-
-@Composable
 private fun EmptyFileExplorer(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
@@ -417,7 +352,8 @@ private fun EmptyFileExplorer(
             text = stringResource(id = R.string.file_explorer_empty),
             style = MaterialTheme.typography.bodyLarge,
         )
-        Button(onClick = onRetry) {
+        Text(text = stringResource(id = R.string.file_explorer_library_settings_description))
+        TextButton(onClick = onRetry) {
             Text(text = stringResource(id = R.string.common_retry))
         }
     }
@@ -428,8 +364,6 @@ private fun FileExplorerList(
     directories: List<AudioDirectory>,
     tracks: List<Track>,
     images: List<ImageFile>,
-    hasMissingPermission: Boolean,
-    onRequestPermission: () -> Unit,
     onDirectoryClick: (String) -> Unit,
     onTrackClick: (Int) -> Unit,
     onTrackLongClick: (Track) -> Unit,
@@ -450,12 +384,6 @@ private fun FileExplorerList(
         modifier = modifier,
         state = listState,
     ) {
-        if (hasMissingPermission) {
-            item(key = "missing-permission") {
-                MissingPermissionItem(onRequestPermission = onRequestPermission)
-                HorizontalDivider()
-            }
-        }
         items(
             items = directories,
             key = { it.path },
@@ -474,7 +402,7 @@ private fun FileExplorerList(
                     )
                 },
                 supportingContent = {
-                    Text(text = stringResource(id = R.string.file_explorer_item_count, directory.trackCount))
+                    Text(stringResource(id = R.string.file_explorer_item_count, directory.trackCount))
                 },
                 trailingContent = {
                     IconButton(onClick = { onAddDirectoryToPlaylistClick(directory) }) {
@@ -585,25 +513,6 @@ private fun FileExplorerList(
             HorizontalDivider()
         }
     }
-}
-
-@Composable
-private fun MissingPermissionItem(
-    onRequestPermission: () -> Unit,
-) {
-    ListItem(
-        headlineContent = {
-            Text(text = stringResource(id = R.string.file_explorer_missing_permission_title))
-        },
-        supportingContent = {
-            Text(text = stringResource(id = R.string.file_explorer_missing_permission_description))
-        },
-        trailingContent = {
-            TextButton(onClick = onRequestPermission) {
-                Text(text = stringResource(id = R.string.album_permission_button))
-            }
-        },
-    )
 }
 
 @Composable
@@ -778,9 +687,7 @@ private fun FileExplorerScreenPreview() {
                 ),
             ),
         ),
-        hasPermission = true,
-        hasMissingPermission = false,
-        onRequestPermission = {},
+        onOpenSettings = {},
         onRetry = {},
         onRefresh = {},
         onDirectoryClick = {},
@@ -797,45 +704,6 @@ private fun FileExplorerScreenPreview() {
 
 internal const val FILE_EXPLORER_PULL_TO_REFRESH_TAG = "file_explorer_pull_to_refresh"
 
-private data class MediaPermissionState(
-    val hasAnyPermission: Boolean,
-    val hasMissingPermission: Boolean,
-)
-
-private fun fileExplorerPermissions(): Array<String> {
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        buildList {
-            add(Manifest.permission.READ_MEDIA_AUDIO)
-            add(Manifest.permission.READ_MEDIA_IMAGES)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                add(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
-            }
-        }.toTypedArray()
-    } else {
-        arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
-    }
-}
-
-private fun android.content.Context.currentMediaPermissionState(): MediaPermissionState {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-        val hasStoragePermission = hasPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
-        return MediaPermissionState(
-            hasAnyPermission = hasStoragePermission,
-            hasMissingPermission = !hasStoragePermission,
-        )
-    }
-
-    val hasAudioPermission = hasPermission(Manifest.permission.READ_MEDIA_AUDIO)
-    val hasFullImagePermission = hasPermission(Manifest.permission.READ_MEDIA_IMAGES)
-    val hasSelectedImagePermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
-        hasPermission(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
-    val hasImagePermission = hasFullImagePermission || hasSelectedImagePermission
-    return MediaPermissionState(
-        hasAnyPermission = hasAudioPermission || hasImagePermission,
-        hasMissingPermission = !hasAudioPermission || !hasImagePermission,
-    )
-}
-
-private fun android.content.Context.hasPermission(permission: String): Boolean {
-    return ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
-}
+private fun directoryDisplayTitle(path: String, rootTitle: String): String =
+    if (DocumentPath.isDocumentPath(path)) "フォルダ"
+    else path.trim('/').substringAfterLast('/').ifEmpty { rootTitle }
