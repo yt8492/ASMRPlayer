@@ -11,9 +11,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -47,13 +47,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +64,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.yt8492.asmrplayer.data.repository.DocumentPath
@@ -72,6 +73,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yt8492.asmrplayer.R
 import com.yt8492.asmrplayer.data.model.AudioDirectory
+import com.yt8492.asmrplayer.data.model.DocumentFile
+import com.yt8492.asmrplayer.data.model.DocumentKind
+import com.yt8492.asmrplayer.ui.preview.FilePreviewDialog
+import com.yt8492.asmrplayer.ui.preview.PreviewFile
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.PictureAsPdf
 import com.yt8492.asmrplayer.data.model.ImageFile
 import com.yt8492.asmrplayer.data.model.Playlist
 import com.yt8492.asmrplayer.data.model.Track
@@ -158,6 +165,7 @@ fun FileExplorerScreen(
     var selectedDirectory by remember { mutableStateOf<AudioDirectory?>(null) }
     var directoryForNewPlaylist by remember { mutableStateOf<AudioDirectory?>(null) }
     var previewImage by remember { mutableStateOf<ImageFile?>(null) }
+    var previewFile by rememberSaveable(stateSaver = PreviewFile.Saver) { mutableStateOf<PreviewFile?>(null) }
     var trackForInfo by remember { mutableStateOf<Track?>(null) }
     val isRoot = uiState.currentPath.isEmpty()
     val title = uiState.directoryTitle ?: directoryDisplayTitle(uiState.currentPath, stringResource(R.string.file_explorer_title))
@@ -181,6 +189,7 @@ fun FileExplorerScreen(
             selectedDirectory = null
             directoryForNewPlaylist = null
             previewImage = null
+            previewFile = null
             trackForInfo = null
         }
     }
@@ -244,7 +253,7 @@ fun FileExplorerScreen(
                     CircularProgressIndicator()
                 }
 
-                uiState.directories.isEmpty() && uiState.tracks.isEmpty() && uiState.images.isEmpty() ->
+                uiState.directories.isEmpty() && uiState.tracks.isEmpty() && uiState.images.isEmpty() && uiState.documents.isEmpty() ->
                     EmptyFileExplorer(
                         onRetry = onRetry,
                         modifier = Modifier.fillMaxSize(),
@@ -254,10 +263,12 @@ fun FileExplorerScreen(
                     directories = uiState.directories,
                     tracks = uiState.tracks,
                     images = uiState.images,
+                    documents = uiState.documents,
                     onDirectoryClick = onDirectoryClick,
                     onTrackClick = onTrackClick,
                     onTrackLongClick = { track -> trackForInfo = track },
                     onImageClick = { image -> previewImage = image },
+                    onDocumentClick = { document -> previewFile = PreviewFile(document.uri.toString(), document.name, document.kind, document.size) },
                     onAddToPlaylistClick = { track -> selectedTrack = track },
                     onAddDirectoryToPlaylistClick = { directory -> selectedDirectory = directory },
                     currentPlaybackTrackId = currentPlaybackTrackId,
@@ -321,9 +332,13 @@ fun FileExplorerScreen(
     }
 
     previewImage?.let { image ->
-        ImagePreviewDialog(
-            image = image,
-            onDismiss = { previewImage = null },
+        ImagePreviewDialog(image = image, onDismiss = { previewImage = null })
+    }
+
+    previewFile?.let { file ->
+        FilePreviewDialog(
+            file = file,
+            onDismiss = { previewFile = null },
         )
     }
 
@@ -364,10 +379,12 @@ private fun FileExplorerList(
     directories: List<AudioDirectory>,
     tracks: List<Track>,
     images: List<ImageFile>,
+    documents: List<DocumentFile>,
     onDirectoryClick: (String) -> Unit,
     onTrackClick: (Int) -> Unit,
     onTrackLongClick: (Track) -> Unit,
     onImageClick: (ImageFile) -> Unit,
+    onDocumentClick: (DocumentFile) -> Unit,
     onAddToPlaylistClick: (Track) -> Unit,
     onAddDirectoryToPlaylistClick: (AudioDirectory) -> Unit,
     currentPlaybackTrackId: Long?,
@@ -512,6 +529,18 @@ private fun FileExplorerList(
             )
             HorizontalDivider()
         }
+        items(documents, key = { "document-${it.id}" }) { document ->
+            ListItem(
+                modifier = Modifier.clickable { onDocumentClick(document) },
+                leadingContent = {
+                    Icon(if (document.kind == DocumentKind.PDF) Icons.Filled.PictureAsPdf else Icons.Filled.Description,
+                        contentDescription = null)
+                },
+                headlineContent = { SingleLineMarqueeText(document.name) },
+                supportingContent = { Text(if (document.kind == DocumentKind.PDF) "PDF" else "txt") },
+            )
+            HorizontalDivider()
+        }
     }
 }
 
@@ -535,6 +564,7 @@ private fun ImagePreviewDialog(
             SingleLineMarqueeText(
                 text = image.title,
                 style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 12.dp),

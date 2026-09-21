@@ -6,5 +6,6 @@ data class FileExplorerContent(
     val parentPath: String? = null,
     val directories: List<AudioDirectory>,
     val tracks: List<Track>,
+    val documents: List<DocumentFile> = emptyList(),
     val images: List<ImageFile>,
 )

@@ -151,7 +151,7 @@ internal fun SettingsScreen(
             }
             item {
                 Text("フォルダ", style = MaterialTheme.typography.titleMedium)
-                Text("選択したフォルダと、その中のフォルダにある音声・画像を読み込みます。画像を1枚ずつ選ぶ必要はありません。",
+                Text("選択したフォルダと、その中のフォルダにある音声・画像・PDF・txtを読み込みます。画像を1枚ずつ選ぶ必要はありません。",
                     modifier = Modifier.padding(vertical = 8.dp))
                 OutlinedButton(onClick = onAddFolder, enabled = !state.isLoading, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Filled.CreateNewFolder, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
@@ -164,7 +164,7 @@ internal fun SettingsScreen(
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(folder.name, style = MaterialTheme.typography.titleMedium)
-                        Text("音声 ${folder.audioCount}件・画像 ${folder.imageCount}件")
+                        Text("音声 ${folder.audioCount}件・画像 ${folder.imageCount}件・文書 ${folder.documentCount}件")
                         if (folder.lastScanAt > 0) {
                             Text("最終読み込み：${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(folder.lastScanAt))}",
                                 style = MaterialTheme.typography.bodySmall)

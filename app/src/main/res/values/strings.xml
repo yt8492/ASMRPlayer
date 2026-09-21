@@ -66,7 +66,7 @@
     <string name="playlist_track_remove">プレイリストから削除</string>
     <string name="playlist_reorder">並べ替え</string>
     <string name="file_explorer_title">ファイル</string>
-    <string name="file_explorer_empty">音声ファイルまたは画像ファイルが見つかりません</string>
+    <string name="file_explorer_empty">音声・画像・PDF・txtファイルが見つかりません</string>
     <string name="file_explorer_folder_content_description">フォルダ</string>
     <string name="file_explorer_item_count">%1$d件</string>
     <string name="file_explorer_image_preview">画像プレビュー</string>

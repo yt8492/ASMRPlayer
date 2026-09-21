@@ -15,6 +15,9 @@ abstract class LibraryFolderDao {
     @Query("SELECT * FROM library_folders ORDER BY name COLLATE NOCASE, uri")
     abstract suspend fun getFolders(): List<LibraryFolderEntity>
 
+    @Query("SELECT * FROM library_documents WHERE active = 1 AND treeUri IN (SELECT uri FROM library_folders)")
+    abstract fun observeActiveDocuments(): Flow<List<LibraryDocumentEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun saveFolder(folder: LibraryFolderEntity)
 

@@ -17,7 +17,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
+import com.yt8492.asmrplayer.data.model.DocumentFile
+import com.yt8492.asmrplayer.data.model.documentKind
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -30,10 +32,13 @@ class LibraryFolderRepository internal constructor(
 ) {
     private val dao = database.libraryFolderDao()
 
-    fun observeFolders() = dao.observeFolders().map { folders -> folders.map { it.toModel() } }.flowOn(Dispatchers.IO)
+    fun observeFolders() = combine(dao.observeFolders(), dao.observeActiveDocuments()) { folders, documents ->
+        val counts = documents.filter { documentKind(it.mimeType, it.name) != null }.groupingBy { it.treeUri }.eachCount()
+        folders.map { it.toModel(counts[it.uri] ?: 0) }
+    }.flowOn(Dispatchers.IO)
 
     suspend fun getFolders(): List<LibraryFolder> = withContext(Dispatchers.IO) {
-        dao.getFolders().map { it.toModel() }
+        dao.getFolders().map { it.toModel(documentCount(it.uri)) }
     }
 
     fun hasPermission(uri: String): Boolean = source.hasPermission(uri)
@@ -70,7 +75,7 @@ class LibraryFolderRepository internal constructor(
         AudioDirectory(
             path = DocumentPath(folder.uri, DocumentsContract.getTreeDocumentId(Uri.parse(folder.uri))).encode(),
             name = folder.name,
-            trackCount = folder.audioCount + folder.imageCount,
+            trackCount = folder.audioCount + folder.imageCount + documentCount(folder.uri),
         )
     }
 
@@ -91,6 +96,11 @@ class LibraryFolderRepository internal constructor(
                 AudioDirectory(DocumentPath(folder.uri, it.documentId).encode(), it.name, childCounts[it.documentId] ?: 0)
             },
             tracks = children.filter { it.mimeType.startsWith("audio/") }.map { it.toTrack() },
+            documents = children.mapNotNull { item ->
+                documentKind(item.mimeType, item.name)?.let { kind ->
+                    DocumentFile(item.id, item.name, item.documentUri(), kind, item.size)
+                }
+            },
             images = children.filter { it.mimeType.startsWith("image/") }.map {
                 ImageFile(it.id, it.name, it.documentUri(), it.mimeType)
             },
@@ -135,7 +145,7 @@ class LibraryFolderRepository internal constructor(
                                 source.readAudioMetadata(item)
                             })
                         }
-                        item.mimeType.startsWith("image/") -> documents.add(item)
+                        item.mimeType.startsWith("image/") || documentKind(item.mimeType, item.name) != null -> documents.add(item)
                     }
                 }
             }
@@ -172,9 +182,14 @@ class LibraryFolderRepository internal constructor(
         durationMs = durationMs, fileSizeBytes = size, trackNumber = trackNumber, uri = documentUri(),
     )
 
-    private fun LibraryFolderEntity.toModel() = LibraryFolder(
+    private suspend fun documentCount(uri: String): Int = dao.getDocuments(uri).count {
+        it.active && documentKind(it.mimeType, it.name) != null
+    }
+
+    private fun LibraryFolderEntity.toModel(documentCount: Int) = LibraryFolder(
         uri, name, audioCount, imageCount, lastScanAt,
         if (hasPermission(uri)) error else "アクセスできません。フォルダを追加し直してください。",
+        documentCount,
     )
 
     companion object {

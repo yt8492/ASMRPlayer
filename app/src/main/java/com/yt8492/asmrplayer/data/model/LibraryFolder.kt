@@ -7,4 +7,5 @@ data class LibraryFolder(
     val imageCount: Int,
     val lastScanAt: Long,
     val error: String?,
+    val documentCount: Int = 0,
 )

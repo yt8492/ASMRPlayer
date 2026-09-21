@@ -144,6 +144,41 @@ class LibraryFolderRepositoryTest {
         assertNull(DocumentPath.parse("Music/ASMR/"))
     }
 
+    @Test
+    fun PDFとtxtだけのフォルダを一覧と件数に含める() = runBlocking {
+        source.children["root"] = listOf(
+            document("pdf", "01.PDF", "application/octet-stream"),
+            document("text", "02.txt", "text/plain"),
+            document("zip", "03.zip", "application/zip"),
+        )
+        repository.addFolder(tree)
+        val content = repository.getContent(rootPath)
+        assertEquals(listOf("01.PDF", "02.txt"), content.documents.map { it.name })
+        assertTrue(content.tracks.isEmpty())
+        assertTrue(content.images.isEmpty())
+        assertEquals(2, repository.getFolders().single().documentCount)
+        assertEquals(2, repository.rootDirectories().single().trackCount)
+        val id = content.documents.first().id
+        source.children["root"] = source.children.getValue("root").filterNot { it.documentId == "text" }
+        repository.reloadFolder(tree.toString())
+        assertEquals(id, repository.getContent(rootPath).documents.single().id)
+        assertEquals(1, repository.getFolders().single().documentCount)
+    }
+
+    @Test
+    fun 子フォルダの文書も数え読み込み失敗時には前回の一覧を維持する() = runBlocking {
+        source.children["nested"] = listOf(document("text", "説明.txt", "text/plain"))
+        repository.addFolder(tree)
+        val content = repository.getContent(rootPath)
+        val child = repository.getContent(DocumentPath.parse(content.directories.single().path)!!)
+        assertEquals("説明.txt", child.documents.single().name)
+        assertEquals(1, repository.getFolders().single().documentCount)
+        source.failParent = "nested"
+        assertTrue(runCatching { repository.reloadFolder(tree.toString()) }.isFailure)
+        assertEquals(1, repository.getFolders().single().documentCount)
+        assertEquals(content.tracks, repository.getContent(rootPath).tracks)
+    }
+
     private fun contextWithoutMediaStoreAccess(): Context = object : ContextWrapper(
         ApplicationProvider.getApplicationContext<Context>(),
     ) {

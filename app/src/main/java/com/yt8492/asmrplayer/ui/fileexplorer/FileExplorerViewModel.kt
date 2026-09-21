@@ -57,6 +57,7 @@ class FileExplorerViewModel(
                     directories = emptyList(),
                     tracks = emptyList(),
                     images = emptyList(),
+                    documents = emptyList(),
                     errorMessage = null,
                 )
             }
@@ -72,6 +73,7 @@ class FileExplorerViewModel(
                         directories = content.directories,
                         tracks = content.tracks,
                         images = content.images,
+                        documents = content.documents,
                     )
                 }
             }.onFailure { throwable ->
@@ -132,6 +134,7 @@ class FileExplorerViewModel(
                             directories = content.directories,
                             tracks = content.tracks,
                             images = content.images,
+                            documents = content.documents,
                         )
                     }
                 }
