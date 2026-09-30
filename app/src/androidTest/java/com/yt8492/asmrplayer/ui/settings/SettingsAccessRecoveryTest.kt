@@ -43,7 +43,7 @@ class SettingsAccessRecoveryTest {
                 )
             }
         }
-        composeRule.onNodeWithText("ライブラリを再読み込み").performScrollTo().assertIsNotEnabled()
+        composeRule.onNodeWithText("すべて再読み込み").performScrollTo().assertIsNotEnabled()
         composeRule.onNodeWithText("再読み込み").assertDoesNotExist()
         composeRule.onNodeWithText("アクセスを許可").performScrollTo().performClick()
         composeRule.runOnIdle {
@@ -51,8 +51,8 @@ class SettingsAccessRecoveryTest {
             state.value = SettingsUiState(folders = listOf(folder.copy(hasPermission = true)))
         }
         composeRule.onNodeWithText("アクセスを許可").assertDoesNotExist()
-        composeRule.onNodeWithText("フォルダへのアクセスを許可してください").assertDoesNotExist()
+        composeRule.onNodeWithText("アクセスの再許可").assertDoesNotExist()
         composeRule.onNodeWithText("再読み込み").performScrollTo().assertIsEnabled()
-        composeRule.onNodeWithText("ライブラリを再読み込み").performScrollTo().assertIsEnabled()
+        composeRule.onNodeWithText("すべて再読み込み").performScrollTo().assertIsEnabled()
     }
 }

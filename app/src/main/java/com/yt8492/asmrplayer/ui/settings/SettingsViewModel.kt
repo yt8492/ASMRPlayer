@@ -40,32 +40,32 @@ class SettingsViewModel(
         }
     }
 
-    fun addFolder(uri: Uri) = perform("フォルダを読み込んでいます") {
+    fun addFolder(uri: Uri) = perform("読み込み中") {
         folders.addFolder(uri)
         "フォルダを読み込みました"
     }
 
-    fun reloadFolder(folder: LibraryFolder) = perform("「${folder.name}」を読み込んでいます") {
+    fun reloadFolder(folder: LibraryFolder) = perform("「${folder.name}」を読み込み中") {
         folders.reloadFolder(folder.uri)
-        "フォルダを再読み込みしました"
+        "再読み込みしました"
     }
 
-    fun restoreFolderAccess(folderUri: String, selectedUri: Uri) = perform("フォルダへのアクセスを復旧しています") {
+    fun restoreFolderAccess(folderUri: String, selectedUri: Uri) = perform("アクセスを復旧中") {
         folders.restoreFolderAccess(folderUri, selectedUri)
-        "フォルダへのアクセスを復旧しました"
+        "アクセスを復旧しました"
     }
 
-    fun removeFolder(folder: LibraryFolder) = perform("フォルダの登録を解除しています") {
+    fun removeFolder(folder: LibraryFolder) = perform("登録を解除中") {
         folders.removeFolder(folder.uri)
-        "フォルダの登録を解除しました"
+        "登録を解除しました"
     }
 
-    fun reloadAll() = perform("ライブラリを読み込んでいます") {
+    fun reloadAll() = perform("読み込み中") {
         var failures = 0
         val registered = folders.getFolders()
         val pendingCount = registered.count { !it.hasPermission }
         registered.filter { it.hasPermission }.forEach { folder ->
-            _uiState.update { it.copy(loadingLabel = "「${folder.name}」を読み込んでいます") }
+            _uiState.update { it.copy(loadingLabel = "「${folder.name}」を読み込み中") }
             try {
                 folders.reloadFolder(folder.uri)
             } catch (error: Exception) {
@@ -74,14 +74,14 @@ class SettingsViewModel(
             }
         }
         when {
-            failures > 0 -> "${failures}件のフォルダを読み込めませんでした。各フォルダの表示を確認してください。"
-            pendingCount > 0 -> "アクセス可能なフォルダを再読み込みしました。${pendingCount}件のフォルダはアクセス許可が必要です。"
-            else -> "ライブラリを再読み込みしました"
+            failures > 0 -> "${failures}件の読み込みに失敗しました。"
+            pendingCount > 0 -> "再読み込みしました。${pendingCount}件はアクセス許可が必要です。"
+            else -> "再読み込みしました"
         }
     }
 
     fun permissionDenied() {
-        _uiState.update { it.copy(message = "以前のプレイリストにある音声の再生にはアクセス許可が必要です。") }
+        _uiState.update { it.copy(message = "音声へのアクセス許可が必要です。") }
     }
 
     fun consumeMessage() = _uiState.update { it.copy(message = null) }
@@ -96,9 +96,9 @@ class SettingsViewModel(
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
                 val message = when (error) {
-                    is DifferentFolderSelectedException -> "別のフォルダが選択されました。元と同じフォルダを選んでください。"
+                    is DifferentFolderSelectedException -> "元と同じフォルダを選んでください。"
                     is SecurityException -> "フォルダへのアクセスを許可してください。"
-                    else -> "読み込み設定を更新できませんでした。アクセス許可と保存先の接続を確認してください。"
+                    else -> "更新できませんでした。権限と保存先の接続を確認してください。"
                 }
                 _uiState.update { it.copy(message = message) }
             } finally {

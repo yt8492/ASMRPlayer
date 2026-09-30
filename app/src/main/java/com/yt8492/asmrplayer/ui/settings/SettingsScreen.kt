@@ -134,7 +134,7 @@ internal fun SettingsScreen(
         topBar = {
             Column {
                 TopAppBar(
-                    title = { Text(if (isInitialSetup) "ライブラリの設定" else "設定") },
+                    title = { Text(if (isInitialSetup) "初期設定" else "設定") },
                     navigationIcon = {
                         if (!isInitialSetup && onBack != null) {
                             IconButton(onClick = onBack) {
@@ -162,26 +162,21 @@ internal fun SettingsScreen(
                 item {
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("フォルダへのアクセスを許可してください", style = MaterialTheme.typography.titleMedium)
-                            Text("再インストールや端末の移行後は、アクセスの再許可が必要です。各フォルダの「アクセスを許可」から、元と同じフォルダを選んでください。")
+                            Text("アクセスの再許可", style = MaterialTheme.typography.titleMedium)
+                            Text("「アクセスを許可」から同じフォルダを選び直してください。")
                         }
                     }
                 }
             }
             item {
-                Text("聴きたい音声を読み込みましょう", style = MaterialTheme.typography.titleLarge)
-                Text("読み込むフォルダはいつでも変更できます。",
-                    modifier = Modifier.padding(top = 8.dp))
-            }
-            item {
                 Text("フォルダ", style = MaterialTheme.typography.titleMedium)
-                Text("選択したフォルダと、その中のフォルダにある音声・画像・PDF・txtを読み込みます。画像を1枚ずつ選ぶ必要はありません。",
+                Text("フォルダ内の音声・画像・PDF・txtを読み込みます。",
                     modifier = Modifier.padding(vertical = 8.dp))
                 OutlinedButton(onClick = onAddFolder, enabled = !state.isLoading, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Filled.CreateNewFolder, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
                     Text("フォルダを追加")
                 }
-                Text("内部ストレージ直下やDownload全体などは選択できません。その中の作品フォルダなどを選んでください。",
+                Text("内部ストレージ全体やDownload全体は選択できません。",
                     style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
             }
             items(state.folders, key = { it.uri }) { folder ->
@@ -193,7 +188,7 @@ internal fun SettingsScreen(
                             Text("最終読み込み：${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(folder.lastScanAt))}",
                                 style = MaterialTheme.typography.bodySmall)
                         } else {
-                            Text("まだ読み込みが完了していません", style = MaterialTheme.typography.bodySmall)
+                            Text("未読み込み", style = MaterialTheme.typography.bodySmall)
                         }
                         if (!folder.hasPermission) {
                             Text("アクセス許可が必要です")
@@ -215,15 +210,15 @@ internal fun SettingsScreen(
                 item {
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("以前のプレイリストの再生", style = MaterialTheme.typography.titleMedium)
-                            Text("以前のプレイリストにある音声を再生するためのアクセス許可です。")
-                            Text(if (hasAudioPermission) "音声へのアクセス：許可済み" else "音声へのアクセス：未許可",
+                            Text("以前のプレイリスト", style = MaterialTheme.typography.titleMedium)
+                            Text("再生には音声へのアクセス許可が必要です。")
+                            Text(if (hasAudioPermission) "許可済み" else "未許可",
                                 style = MaterialTheme.typography.labelLarge)
                             if (!hasAudioPermission) {
                                 Button(onClick = onRequestAudioPermission, enabled = !state.isLoading) {
                                     Text("音声へのアクセスを許可")
                                 }
-                                TextButton(onClick = onOpenAppSettings, enabled = !state.isLoading) { Text("Androidの権限設定を開く") }
+                                TextButton(onClick = onOpenAppSettings, enabled = !state.isLoading) { Text("権限設定を開く") }
                             }
                         }
                     }
@@ -231,13 +226,11 @@ internal fun SettingsScreen(
             }
             item {
                 OutlinedButton(onClick = onReloadAll, enabled = !state.isLoading && state.folders.any { it.hasPermission }, modifier = Modifier.fillMaxWidth()) {
-                    Text("ライブラリを再読み込み")
+                    Text("すべて再読み込み")
                 }
                 if (isInitialSetup) {
                     Button(onClick = onCompleteSetup, enabled = !state.isLoading,
-                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) { Text("はじめる") }
-                    Text("あとから設定画面でフォルダを追加できます。", style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = 8.dp))
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) { Text("完了") }
                 }
             }
         }
@@ -246,7 +239,7 @@ internal fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { removingFolder = null },
             title = { Text("フォルダの登録を解除") },
-            text = { Text("「${folder.name}」の読み込みを解除します。元のファイルは削除されません。このフォルダから追加したプレイリストの曲は、再登録するまで利用できなくなります。") },
+            text = { Text("「${folder.name}」のファイルは削除されません。再登録するまで、このフォルダの曲はプレイリストでも再生できません。") },
             confirmButton = { TextButton(onClick = { removingFolder = null; onRemoveFolder(folder) }) { Text("登録解除") } },
             dismissButton = { TextButton(onClick = { removingFolder = null }) { Text("キャンセル") } },
         )
