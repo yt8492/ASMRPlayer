@@ -8,4 +8,5 @@ data class LibraryFolder(
     val lastScanAt: Long,
     val error: String?,
     val documentCount: Int = 0,
+    val hasPermission: Boolean = true,
 )

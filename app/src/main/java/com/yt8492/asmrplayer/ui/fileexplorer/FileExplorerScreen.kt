@@ -265,6 +265,7 @@ fun FileExplorerScreen(
                     images = uiState.images,
                     documents = uiState.documents,
                     onDirectoryClick = onDirectoryClick,
+                    onFolderPermissionRequired = onOpenSettings,
                     onTrackClick = onTrackClick,
                     onTrackLongClick = { track -> trackForInfo = track },
                     onImageClick = { image -> previewImage = image },
@@ -381,6 +382,7 @@ private fun FileExplorerList(
     images: List<ImageFile>,
     documents: List<DocumentFile>,
     onDirectoryClick: (String) -> Unit,
+    onFolderPermissionRequired: () -> Unit,
     onTrackClick: (Int) -> Unit,
     onTrackLongClick: (Track) -> Unit,
     onImageClick: (ImageFile) -> Unit,
@@ -406,7 +408,9 @@ private fun FileExplorerList(
             key = { it.path },
         ) { directory ->
             ListItem(
-                modifier = Modifier.clickable { onDirectoryClick(directory.path) },
+                modifier = Modifier.clickable {
+                    if (directory.hasPermission) onDirectoryClick(directory.path) else onFolderPermissionRequired()
+                },
                 leadingContent = {
                     Icon(
                         imageVector = Icons.Filled.Folder,
@@ -419,10 +423,14 @@ private fun FileExplorerList(
                     )
                 },
                 supportingContent = {
-                    Text(stringResource(id = R.string.file_explorer_item_count, directory.trackCount))
+                    Text(if (directory.hasPermission) {
+                        stringResource(id = R.string.file_explorer_item_count, directory.trackCount)
+                    } else {
+                        "アクセス許可が必要です。タップして設定を開く"
+                    })
                 },
                 trailingContent = {
-                    IconButton(onClick = { onAddDirectoryToPlaylistClick(directory) }) {
+                    IconButton(onClick = { onAddDirectoryToPlaylistClick(directory) }, enabled = directory.hasPermission) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.PlaylistAdd,
                             contentDescription = stringResource(id = R.string.playlist_add_folder),

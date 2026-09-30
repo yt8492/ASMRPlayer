@@ -127,6 +127,60 @@ class LibraryFolderRepositoryTest {
     }
 
     @Test
+    fun フォルダ情報だけ復元された場合は再許可待ちを表示し同じフォルダでIDを維持して復旧する() = runBlocking {
+        repository.addFolder(tree)
+        val before = repository.getContent(rootPath)
+        // バックアップされたDBは残り、OS側の許可だけ失われた状態を再現する。
+        source.grants.clear()
+        val restored = LibraryFolderRepository(ApplicationProvider.getApplicationContext(), database, source)
+        val explorer = FileExplorerRepositoryImpl(contextWithoutMediaStoreAccess(), restored)
+        val pending = restored.getFolders().single()
+        assertFalse(pending.hasPermission)
+        assertNull(pending.error)
+        val root = explorer.getContent(rootPath.encode())
+        assertEquals("", root.currentPath)
+        assertFalse(root.directories.single().hasPermission)
+        assertFalse(explorer.scanDirectory(rootPath.encode()))
+        assertTrue(restored.getTracks(before.tracks.map { it.id }).isEmpty())
+
+        restored.restoreFolderAccess(tree.toString(), tree)
+
+        assertTrue(restored.getFolders().single().hasPermission)
+        assertTrue(explorer.getContent("").directories.single().hasPermission)
+        val after = explorer.getContent(rootPath.encode())
+        assertEquals(before.tracks, after.tracks)
+        assertEquals(before.images, after.images)
+        assertEquals(before.tracks, restored.getTracks(before.tracks.map { it.id }))
+        assertEquals(1, restored.getFolders().size)
+    }
+
+    @Test
+    fun 再許可で別のフォルダを選んでも登録と曲の参照を書き換えない() = runBlocking {
+        repository.addFolder(tree)
+        val before = repository.getContent(rootPath)
+        source.grants.clear()
+        val other = Uri.parse("content://test.documents/tree/other")
+        val error = runCatching { repository.restoreFolderAccess(tree.toString(), other) }.exceptionOrNull()
+        assertTrue(error is DifferentFolderSelectedException)
+        assertTrue(source.grants.isEmpty())
+        assertEquals(listOf(tree.toString()), repository.getFolders().map { it.uri })
+        assertFalse(repository.getFolders().single().hasPermission)
+        repository.restoreFolderAccess(tree.toString(), tree)
+        assertEquals(before.tracks, repository.getContent(rootPath).tracks)
+    }
+
+    @Test
+    fun 再許可待ちの再読み込みではフォルダ情報にエラーを保存しない() = runBlocking {
+        repository.addFolder(tree)
+        val saved = database.libraryFolderDao().getFolders().single()
+        source.grants.clear()
+        val error = runCatching { repository.reloadFolder(tree.toString()) }.exceptionOrNull()
+        assertTrue(error is SecurityException)
+        assertEquals(saved, database.libraryFolderDao().getFolders().single())
+        assertNull(repository.getFolders().single().error)
+    }
+
+    @Test
     fun 同名の別フォルダにある曲は異なるIDを持つ() = runBlocking {
         repository.addFolder(tree)
         val other = Uri.parse("content://other.documents/tree/root")

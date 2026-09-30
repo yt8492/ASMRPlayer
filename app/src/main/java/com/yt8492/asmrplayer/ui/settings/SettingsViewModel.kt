@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.yt8492.asmrplayer.data.model.LibraryFolder
 import com.yt8492.asmrplayer.data.repository.LibraryFolderRepository
+import com.yt8492.asmrplayer.data.repository.DifferentFolderSelectedException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -49,6 +50,11 @@ class SettingsViewModel(
         "フォルダを再読み込みしました"
     }
 
+    fun restoreFolderAccess(folderUri: String, selectedUri: Uri) = perform("フォルダへのアクセスを復旧しています") {
+        folders.restoreFolderAccess(folderUri, selectedUri)
+        "フォルダへのアクセスを復旧しました"
+    }
+
     fun removeFolder(folder: LibraryFolder) = perform("フォルダの登録を解除しています") {
         folders.removeFolder(folder.uri)
         "フォルダの登録を解除しました"
@@ -56,7 +62,9 @@ class SettingsViewModel(
 
     fun reloadAll() = perform("ライブラリを読み込んでいます") {
         var failures = 0
-        folders.getFolders().forEach { folder ->
+        val registered = folders.getFolders()
+        val pendingCount = registered.count { !it.hasPermission }
+        registered.filter { it.hasPermission }.forEach { folder ->
             _uiState.update { it.copy(loadingLabel = "「${folder.name}」を読み込んでいます") }
             try {
                 folders.reloadFolder(folder.uri)
@@ -65,7 +73,11 @@ class SettingsViewModel(
                 failures += 1
             }
         }
-        if (failures == 0) "ライブラリを再読み込みしました" else "${failures}件のフォルダを読み込めませんでした。各フォルダの表示を確認してください。"
+        when {
+            failures > 0 -> "${failures}件のフォルダを読み込めませんでした。各フォルダの表示を確認してください。"
+            pendingCount > 0 -> "アクセス可能なフォルダを再読み込みしました。${pendingCount}件のフォルダはアクセス許可が必要です。"
+            else -> "ライブラリを再読み込みしました"
+        }
     }
 
     fun permissionDenied() {
@@ -83,9 +95,15 @@ class SettingsViewModel(
                 _uiState.update { it.copy(message = message) }
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
-                _uiState.update { it.copy(message = "読み込み設定を更新できませんでした。アクセス許可と保存先の接続を確認してください。") }
+                val message = when (error) {
+                    is DifferentFolderSelectedException -> "別のフォルダが選択されました。元と同じフォルダを選んでください。"
+                    is SecurityException -> "フォルダへのアクセスを許可してください。"
+                    else -> "読み込み設定を更新できませんでした。アクセス許可と保存先の接続を確認してください。"
+                }
+                _uiState.update { it.copy(message = message) }
             } finally {
-                _uiState.update { it.copy(isLoading = false, loadingLabel = "") }
+                val values = folders.getFolders()
+                _uiState.update { it.copy(folders = values, isLoading = false, loadingLabel = "") }
             }
         }
     }

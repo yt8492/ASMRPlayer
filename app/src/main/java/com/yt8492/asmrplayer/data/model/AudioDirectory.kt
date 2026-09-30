@@ -4,4 +4,5 @@ data class AudioDirectory(
     val path: String,
     val name: String,
     val trackCount: Int,
+    val hasPermission: Boolean = true,
 )

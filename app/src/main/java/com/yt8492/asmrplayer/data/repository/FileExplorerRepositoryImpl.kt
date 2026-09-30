@@ -25,7 +25,10 @@ class FileExplorerRepositoryImpl internal constructor(
     private val folderRepository: LibraryFolderRepository = LibraryFolderRepository(context),
 ) : FileExplorerRepository {
     override suspend fun getContent(directoryPath: String): FileExplorerContent = withContext(Dispatchers.IO) {
-        DocumentPath.parse(directoryPath)?.let { return@withContext folderRepository.getContent(it) }
+        DocumentPath.parse(directoryPath)?.let {
+            // 権限が失われたフォルダを開いていた場合は、再許可を案内する一覧へ戻す。
+            if (folderRepository.hasPermission(it.treeUri)) return@withContext folderRepository.getContent(it)
+        }
         FileExplorerContent(
             currentPath = "",
             directories = folderRepository.rootDirectories(),
@@ -46,6 +49,7 @@ class FileExplorerRepositoryImpl internal constructor(
 
     override suspend fun scanDirectory(directoryPath: String): Boolean = withContext(Dispatchers.IO) {
         DocumentPath.parse(directoryPath)?.let {
+            if (!folderRepository.hasPermission(it.treeUri)) return@withContext false
             folderRepository.reloadFolder(it.treeUri)
             return@withContext true
         }

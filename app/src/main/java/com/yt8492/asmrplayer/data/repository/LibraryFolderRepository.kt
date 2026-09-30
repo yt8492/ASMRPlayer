@@ -63,6 +63,17 @@ class LibraryFolderRepository internal constructor(
         }
     }
 
+    suspend fun restoreFolderAccess(folderUri: String, selectedUri: Uri) = withContext(Dispatchers.IO) {
+        mutationMutex.withLock {
+            if (folderUri != selectedUri.toString()) throw DifferentFolderSelectedException()
+            val folder = dao.getFolders().firstOrNull { it.uri == folderUri }
+                ?: throw IOException("フォルダは登録解除されています。")
+            source.persistPermission(selectedUri)
+            // 同じ登録と文書IDを使い、プレイリストなどの参照を維持する。
+            scanFolder(folder)
+        }
+    }
+
     suspend fun removeFolder(uri: String) = withContext(Dispatchers.IO) {
         mutationMutex.withLock {
             // 端末の元ファイルは削除しない。保存済みIDも再追加に備えて残す。
@@ -76,6 +87,7 @@ class LibraryFolderRepository internal constructor(
             path = DocumentPath(folder.uri, DocumentsContract.getTreeDocumentId(Uri.parse(folder.uri))).encode(),
             name = folder.name,
             trackCount = folder.audioCount + folder.imageCount + documentCount(folder.uri),
+            hasPermission = hasPermission(folder.uri),
         )
     }
 
@@ -115,8 +127,9 @@ class LibraryFolderRepository internal constructor(
     }
 
     private suspend fun scanFolder(folder: LibraryFolderEntity) {
+        // 再インストール後などの再許可待ちは、読み込み失敗として保存しない。
+        checkPermission(folder.uri)
         try {
-            checkPermission(folder.uri)
             val tree = Uri.parse(folder.uri)
             val rootId = DocumentsContract.getTreeDocumentId(tree)
             val old = dao.getDocuments(folder.uri).associateBy { it.documentId }
@@ -163,11 +176,8 @@ class LibraryFolderRepository internal constructor(
             )
         } catch (error: Exception) {
             if (error is CancellationException) throw error
-            val message = if (error is SecurityException) {
-                "アクセスできません。フォルダを追加し直してください。"
-            } else {
-                "読み込みに失敗しました。保存先の接続を確認して再読み込みしてください。"
-            }
+            if (error is SecurityException && !hasPermission(folder.uri)) throw error
+            val message = "読み込みに失敗しました。保存先の接続を確認して再読み込みしてください。"
             dao.saveFolder(folder.copy(error = message))
             throw IOException(message)
         }
@@ -186,13 +196,19 @@ class LibraryFolderRepository internal constructor(
         it.active && documentKind(it.mimeType, it.name) != null
     }
 
-    private fun LibraryFolderEntity.toModel(documentCount: Int) = LibraryFolder(
-        uri, name, audioCount, imageCount, lastScanAt,
-        if (hasPermission(uri)) error else "アクセスできません。フォルダを追加し直してください。",
-        documentCount,
-    )
+    private fun LibraryFolderEntity.toModel(documentCount: Int): LibraryFolder {
+        val granted = hasPermission(uri)
+        return LibraryFolder(
+            uri, name, audioCount, imageCount, lastScanAt,
+            error = if (granted) error else null,
+            documentCount = documentCount,
+            hasPermission = granted,
+        )
+    }
 
     companion object {
         private val mutationMutex = Mutex()
     }
 }
+
+internal class DifferentFolderSelectedException : Exception()

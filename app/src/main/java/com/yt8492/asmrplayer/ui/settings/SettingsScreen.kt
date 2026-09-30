@@ -2,6 +2,7 @@ package com.yt8492.asmrplayer.ui.settings
 
 import android.content.Intent
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -37,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -67,6 +69,12 @@ fun SettingsRoute(
     val folderLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         uri?.let(viewModel::addFolder)
     }
+    var restoringFolderUri by rememberSaveable { mutableStateOf<String?>(null) }
+    val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        val folderUri = restoringFolderUri
+        restoringFolderUri = null
+        if (uri != null && folderUri != null) viewModel.restoreFolderAccess(folderUri, uri)
+    }
     LifecycleResumeEffect(Unit) {
         hasAudioPermission = context.hasAudioReadPermission()
         viewModel.refreshPermissions()
@@ -82,6 +90,11 @@ fun SettingsRoute(
         },
         onAddFolder = { folderLauncher.launch(null) },
         onReloadFolder = viewModel::reloadFolder,
+        onRestoreFolderAccess = { folder ->
+            restoringFolderUri = folder.uri
+            val tree = Uri.parse(folder.uri)
+            restoreLauncher.launch(DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree)))
+        },
         onRemoveFolder = viewModel::removeFolder,
         onReloadAll = viewModel::reloadAll,
         onCompleteSetup = onCompleteSetup,
@@ -101,6 +114,7 @@ internal fun SettingsScreen(
     onOpenAppSettings: () -> Unit,
     onAddFolder: () -> Unit,
     onReloadFolder: (LibraryFolder) -> Unit,
+    onRestoreFolderAccess: (LibraryFolder) -> Unit,
     onRemoveFolder: (LibraryFolder) -> Unit,
     onReloadAll: () -> Unit,
     onCompleteSetup: () -> Unit,
@@ -144,6 +158,16 @@ internal fun SettingsScreen(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            if (state.folders.any { !it.hasPermission }) {
+                item {
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("フォルダへのアクセスを許可してください", style = MaterialTheme.typography.titleMedium)
+                            Text("再インストールや端末の移行後は、アクセスの再許可が必要です。各フォルダの「アクセスを許可」から、元と同じフォルダを選んでください。")
+                        }
+                    }
+                }
+            }
             item {
                 Text("聴きたい音声を読み込みましょう", style = MaterialTheme.typography.titleLarge)
                 Text("読み込むフォルダはいつでも変更できます。",
@@ -171,9 +195,17 @@ internal fun SettingsScreen(
                         } else {
                             Text("まだ読み込みが完了していません", style = MaterialTheme.typography.bodySmall)
                         }
-                        folder.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                        if (!folder.hasPermission) {
+                            Text("アクセス許可が必要です")
+                        } else {
+                            folder.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                        }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(onClick = { onReloadFolder(folder) }, enabled = !state.isLoading) { Text("再読み込み") }
+                            if (folder.hasPermission) {
+                                TextButton(onClick = { onReloadFolder(folder) }, enabled = !state.isLoading) { Text("再読み込み") }
+                            } else {
+                                TextButton(onClick = { onRestoreFolderAccess(folder) }, enabled = !state.isLoading) { Text("アクセスを許可") }
+                            }
                             TextButton(onClick = { removingFolder = folder }, enabled = !state.isLoading) { Text("登録解除") }
                         }
                     }
@@ -198,7 +230,7 @@ internal fun SettingsScreen(
                 }
             }
             item {
-                OutlinedButton(onClick = onReloadAll, enabled = !state.isLoading, modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = onReloadAll, enabled = !state.isLoading && state.folders.any { it.hasPermission }, modifier = Modifier.fillMaxWidth()) {
                     Text("ライブラリを再読み込み")
                 }
                 if (isInitialSetup) {
