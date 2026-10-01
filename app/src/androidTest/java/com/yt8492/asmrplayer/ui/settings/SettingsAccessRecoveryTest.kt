@@ -30,9 +30,6 @@ class SettingsAccessRecoveryTest {
                 SettingsScreen(
                     state = state.value,
                     isInitialSetup = true,
-                    hasAudioPermission = false,
-                    onRequestAudioPermission = {},
-                    onOpenAppSettings = {},
                     onAddFolder = {},
                     onReloadFolder = {},
                     onRestoreFolderAccess = { requested = it },

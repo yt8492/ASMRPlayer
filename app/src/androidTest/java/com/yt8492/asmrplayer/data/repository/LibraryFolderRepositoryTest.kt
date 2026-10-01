@@ -40,7 +40,7 @@ class LibraryFolderRepositoryTest {
     fun tearDown() = database.close()
 
     @Test
-    fun 音声権限があってもファイル一覧は手動追加フォルダだけを表示する() = runBlocking {
+    fun 音声権限なしでファイル一覧は手動追加フォルダだけを表示する() = runBlocking {
         repository.addFolder(tree)
         val explorer = FileExplorerRepositoryImpl(contextWithoutMediaStoreAccess(), repository)
 
@@ -233,13 +233,51 @@ class LibraryFolderRepositoryTest {
         assertEquals(content.tracks, repository.getContent(rootPath).tracks)
     }
 
+    @Test
+    fun 音声権限なしで登録済みの曲だけを指定順と重複を保って取得する() = runBlocking {
+        repository.addFolder(tree)
+        val first = repository.getContent(rootPath).tracks.single()
+        val second = repository.getContent(DocumentPath(tree.toString(), "nested")).tracks.single()
+        val tracks = TrackRepositoryImpl(contextWithoutMediaStoreAccess(), repository)
+        // 過去の端末全体の曲IDが混ざっていても、同じ番号の登録曲に読み替えない。
+        val oldId = first.id - DOCUMENT_TRACK_ID_BASE
+        assertEquals(
+            listOf(second, first, second),
+            tracks.getTracks(listOf(second.id, oldId, first.id, second.id)),
+        )
+        assertEquals(listOf(first), tracks.getTracksInDirectory(rootPath.encode()))
+        source.grants.clear()
+        assertTrue(tracks.getTracks(listOf(first.id)).isEmpty())
+    }
+
+    @Test
+    fun 従来のフォルダパスは読み込みもメディアスキャンもしない() = runBlocking {
+        val context = contextWithoutMediaStoreAccess()
+        val tracks = TrackRepositoryImpl(context, repository)
+        val explorer = FileExplorerRepositoryImpl(context, repository)
+        assertTrue(tracks.getTracksInDirectory("Music/").isEmpty())
+        assertFalse(explorer.scanDirectory("Music/"))
+        assertFalse(explorer.scanDirectory(""))
+    }
+
+    @Test
+    fun 選択フォルダの再読み込みで追加された曲を取得できる() = runBlocking {
+        repository.addFolder(tree)
+        val explorer = FileExplorerRepositoryImpl(contextWithoutMediaStoreAccess(), repository)
+        source.children["root"] = source.children.getValue("root") + document("new", "new.wav", "audio/wav")
+        assertTrue(explorer.scanDirectory(rootPath.encode()))
+        assertEquals(2, explorer.getContent(rootPath.encode()).tracks.size)
+        source.grants.clear()
+        assertFalse(explorer.scanDirectory(rootPath.encode()))
+    }
+
     private fun contextWithoutMediaStoreAccess(): Context = object : ContextWrapper(
         ApplicationProvider.getApplicationContext<Context>(),
     ) {
-        override fun checkPermission(permission: String, pid: Int, uid: Int): Int = PackageManager.PERMISSION_GRANTED
+        override fun checkPermission(permission: String, pid: Int, uid: Int): Int = PackageManager.PERMISSION_DENIED
 
         override fun getContentResolver(): ContentResolver {
-            throw AssertionError("ファイル一覧でMediaStoreを読み取らない")
+            throw AssertionError("手動追加フォルダの取得でMediaStoreを読み取らない")
         }
     }
 

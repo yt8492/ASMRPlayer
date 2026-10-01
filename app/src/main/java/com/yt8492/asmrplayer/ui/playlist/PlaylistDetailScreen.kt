@@ -1,10 +1,5 @@
 package com.yt8492.asmrplayer.ui.playlist
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
@@ -23,7 +18,6 @@ import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -53,7 +47,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yt8492.asmrplayer.R
@@ -75,35 +68,12 @@ fun PlaylistDetailRoute(
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-    val permission = remember {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            Manifest.permission.READ_MEDIA_AUDIO
-        } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
-        }
-    }
-    var hasPermission by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED,
-        )
-    }
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-    ) { isGranted ->
-        hasPermission = isGranted
-    }
-
-    LaunchedEffect(hasPermission, playlistId) {
-        if (hasPermission) {
-            viewModel.loadPlaylistTracks()
-        }
+    LaunchedEffect(playlistId) {
+        viewModel.loadPlaylistTracks()
     }
 
     PlaylistDetailScreen(
         uiState = uiState,
-        hasPermission = hasPermission,
-        onRequestPermission = { permissionLauncher.launch(permission) },
         onBack = onBack,
         onTrackClick = { index -> onTrackClick(uiState.playlistTracks, index) },
         onRenamePlaylist = viewModel::renamePlaylist,
@@ -121,8 +91,6 @@ fun PlaylistDetailRoute(
 @Composable
 fun PlaylistDetailScreen(
     uiState: PlaylistDetailUiState,
-    hasPermission: Boolean,
-    onRequestPermission: () -> Unit,
     onBack: () -> Unit,
     onTrackClick: (Int) -> Unit,
     onRenamePlaylist: (String) -> Unit,
@@ -190,11 +158,6 @@ fun PlaylistDetailScreen(
                 .fillMaxSize(),
         ) {
             when {
-                !hasPermission -> PermissionRequest(
-                    onRequestPermission = onRequestPermission,
-                    modifier = Modifier.align(Alignment.Center),
-                )
-
                 uiState.isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
 
                 uiState.playlistTracks.isEmpty() -> Text(
@@ -236,32 +199,6 @@ fun PlaylistDetailScreen(
             track = track,
             onDismiss = { trackForInfo = null },
         )
-    }
-}
-
-@Composable
-private fun PermissionRequest(
-    onRequestPermission: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier
-            .padding(horizontal = 24.dp)
-            .fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = stringResource(id = R.string.album_permission_title),
-            style = MaterialTheme.typography.titleLarge,
-        )
-        Text(
-            text = stringResource(id = R.string.album_permission_description),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Button(onClick = onRequestPermission) {
-            Text(text = stringResource(id = R.string.album_permission_button))
-        }
     }
 }
 

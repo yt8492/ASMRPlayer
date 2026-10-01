@@ -17,7 +17,6 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.longClick
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.yt8492.asmrplayer.data.model.Album
 import com.yt8492.asmrplayer.data.model.Playlist
 import com.yt8492.asmrplayer.data.model.Track
 import com.yt8492.asmrplayer.ui.fileexplorer.FileExplorerScreen
@@ -25,8 +24,6 @@ import com.yt8492.asmrplayer.ui.fileexplorer.FileExplorerUiState
 import com.yt8492.asmrplayer.ui.playlist.PlaylistDetailScreen
 import com.yt8492.asmrplayer.ui.playlist.PlaylistDetailUiState
 import com.yt8492.asmrplayer.ui.playlist.PlaylistTrackItem
-import com.yt8492.asmrplayer.ui.track.TrackListScreen
-import com.yt8492.asmrplayer.ui.track.TrackListUiState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -78,44 +75,6 @@ class TrackInfoDialogTest {
         }
 
         composeRule.onNodeWithText("不明").assertIsDisplayed()
-    }
-
-    @Test
-    fun アルバムのトラック一覧は長押しで情報を表示して通常タップも維持する() {
-        val track = createTrack()
-        var clickedIndex: Int? = null
-        composeRule.setContent {
-            MaterialTheme {
-                TrackListScreen(
-                    uiState = TrackListUiState(
-                        album = Album(
-                            id = 1L,
-                            title = "アルバム",
-                            artist = "アーティスト",
-                            trackCount = 1,
-                            albumArtUri = null,
-                        ),
-                        tracks = listOf(track),
-                    ),
-                    hasPermission = true,
-                    onRequestPermission = {},
-                    onRetry = {},
-                    onBack = {},
-                    onTrackClick = { clickedIndex = it },
-                    onAddTrackToPlaylist = { _, _ -> },
-                    onCreatePlaylistAndAddTrack = { _, _ -> },
-                    onPlaylistMessageShown = {},
-                )
-            }
-        }
-
-        composeRule.onNodeWithText(track.title).performTouchInput { longClick() }
-
-        composeRule.onNodeWithText("トラック情報").assertIsDisplayed()
-        composeRule.runOnIdle { assertNull(clickedIndex) }
-        composeRule.onNodeWithText("閉じる").performClick()
-        composeRule.onNodeWithText(track.title).performClick()
-        composeRule.runOnIdle { assertEquals(0, clickedIndex) }
     }
 
     @Test
@@ -176,8 +135,6 @@ class TrackInfoDialogTest {
                             ),
                         ),
                     ),
-                    hasPermission = true,
-                    onRequestPermission = {},
                     onBack = {},
                     onTrackClick = { clickedIndex = it },
                     onRenamePlaylist = {},

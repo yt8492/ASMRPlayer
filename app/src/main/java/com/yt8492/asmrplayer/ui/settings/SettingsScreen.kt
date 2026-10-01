@@ -1,9 +1,7 @@
 package com.yt8492.asmrplayer.ui.settings
 
-import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
-import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -46,8 +44,6 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yt8492.asmrplayer.data.model.LibraryFolder
-import com.yt8492.asmrplayer.data.repository.audioReadPermission
-import com.yt8492.asmrplayer.data.repository.hasAudioReadPermission
 import java.text.DateFormat
 import java.util.Date
 
@@ -59,13 +55,7 @@ fun SettingsRoute(
     bottomBar: @Composable () -> Unit = {},
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.factory(LocalContext.current)),
 ) {
-    val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var hasAudioPermission by remember { mutableStateOf(context.hasAudioReadPermission()) }
-    val audioLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        hasAudioPermission = granted
-        if (!granted) viewModel.permissionDenied()
-    }
     val folderLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         uri?.let(viewModel::addFolder)
     }
@@ -76,18 +66,12 @@ fun SettingsRoute(
         if (uri != null && folderUri != null) viewModel.restoreFolderAccess(folderUri, uri)
     }
     LifecycleResumeEffect(Unit) {
-        hasAudioPermission = context.hasAudioReadPermission()
         viewModel.refreshPermissions()
         onPauseOrDispose { }
     }
     SettingsScreen(
         state = state,
         isInitialSetup = isInitialSetup,
-        hasAudioPermission = hasAudioPermission,
-        onRequestAudioPermission = { audioLauncher.launch(audioReadPermission()) },
-        onOpenAppSettings = {
-            context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")))
-        },
         onAddFolder = { folderLauncher.launch(null) },
         onReloadFolder = viewModel::reloadFolder,
         onRestoreFolderAccess = { folder ->
@@ -109,9 +93,6 @@ fun SettingsRoute(
 internal fun SettingsScreen(
     state: SettingsUiState,
     isInitialSetup: Boolean,
-    hasAudioPermission: Boolean,
-    onRequestAudioPermission: () -> Unit,
-    onOpenAppSettings: () -> Unit,
     onAddFolder: () -> Unit,
     onReloadFolder: (LibraryFolder) -> Unit,
     onRestoreFolderAccess: (LibraryFolder) -> Unit,
@@ -202,24 +183,6 @@ internal fun SettingsScreen(
                                 TextButton(onClick = { onRestoreFolderAccess(folder) }, enabled = !state.isLoading) { Text("アクセスを許可") }
                             }
                             TextButton(onClick = { removingFolder = folder }, enabled = !state.isLoading) { Text("登録解除") }
-                        }
-                    }
-                }
-            }
-            if (!isInitialSetup) {
-                item {
-                    Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("以前のプレイリスト", style = MaterialTheme.typography.titleMedium)
-                            Text("再生には音声へのアクセス許可が必要です。")
-                            Text(if (hasAudioPermission) "許可済み" else "未許可",
-                                style = MaterialTheme.typography.labelLarge)
-                            if (!hasAudioPermission) {
-                                Button(onClick = onRequestAudioPermission, enabled = !state.isLoading) {
-                                    Text("音声へのアクセスを許可")
-                                }
-                                TextButton(onClick = onOpenAppSettings, enabled = !state.isLoading) { Text("権限設定を開く") }
-                            }
                         }
                     }
                 }

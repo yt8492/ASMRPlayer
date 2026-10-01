@@ -196,17 +196,10 @@ fun PlayerRoute(
                         .setTitle(track.title)
                         .setArtist(track.artist)
                         .setAlbumTitle(trackAlbumTitle)
-                        .setArtworkUri(track.albumArtUri ?: queue.albumArtUri)
+                        .setArtworkUri(track.albumArtUri)
                         .setExtras(
                             Bundle().apply {
                                 when (queue) {
-                                    is PlaybackQueue.Album -> {
-                                        putString(PlaybackService.EXTRA_QUEUE_TYPE, PlaybackService.QUEUE_TYPE_ALBUM)
-                                        putLong(PlaybackService.EXTRA_ALBUM_ID, queue.albumId)
-                                        putString(PlaybackService.EXTRA_ALBUM_TITLE, queue.albumTitle)
-                                        putString(PlaybackService.EXTRA_ALBUM_ART_URI, queue.albumArtUri?.toString().orEmpty())
-                                    }
-
                                     is PlaybackQueue.Playlist -> {
                                         putString(PlaybackService.EXTRA_QUEUE_TYPE, PlaybackService.QUEUE_TYPE_PLAYLIST)
                                         putLong(PlaybackService.EXTRA_PLAYLIST_ID, queue.playlistId)
@@ -259,7 +252,6 @@ fun PlayerRoute(
             uiState = uiState,
             queueTitle = queue.title,
             queueArtworkLabel = queue.artworkLabel(),
-            fallbackAlbumArtUri = queue.albumArtUri,
             onBack = onBack,
             onCurrentTrackChanged = viewModel::onCurrentTrackChanged,
             onSaveTrackLoop = viewModel::saveTrackLoop,
@@ -281,7 +273,6 @@ fun PlayerScreen(
     uiState: PlayerUiState,
     queueTitle: String,
     queueArtworkLabel: String?,
-    fallbackAlbumArtUri: Uri?,
     onBack: () -> Unit,
     onCurrentTrackChanged: (Long?) -> Unit,
     onSaveTrackLoop: (trackId: Long, startMs: Long, endMs: Long) -> Unit,
@@ -627,7 +618,7 @@ fun PlayerScreen(
             ) {
                 val customArtworkUri = uiState.currentTrackArtworkUri ?: uiState.queueArtworkUri
                 AlbumArt(
-                    albumArtUri = customArtworkUri ?: currentTrack?.albumArtUri ?: fallbackAlbumArtUri,
+                    albumArtUri = customArtworkUri ?: currentTrack?.albumArtUri,
                     contentDescription = currentTrack?.albumTitle ?: queueTitle,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -1340,22 +1331,13 @@ private enum class SeekFeedback(
 
 private val PlaybackQueue.title: String
     get() = when (this) {
-        is PlaybackQueue.Album -> albumTitle
         is PlaybackQueue.Folder -> directoryTitle
         is PlaybackQueue.Playlist -> playlistName
-    }
-
-private val PlaybackQueue.albumArtUri: Uri?
-    get() = when (this) {
-        is PlaybackQueue.Album -> albumArtUri
-        is PlaybackQueue.Folder -> null
-        is PlaybackQueue.Playlist -> null
     }
 
 @Composable
 private fun PlaybackQueue.artworkLabel(): String? {
     return when (this) {
-        is PlaybackQueue.Album -> stringResource(id = R.string.player_artwork_scope_album)
         is PlaybackQueue.Playlist -> stringResource(id = R.string.player_artwork_scope_playlist)
         is PlaybackQueue.Folder -> stringResource(id = R.string.player_artwork_scope_folder)
     }

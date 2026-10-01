@@ -60,20 +60,6 @@ class PlayerViewModel(
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             runCatching {
                 when (val currentQueue = queue) {
-                    is PlaybackQueue.Album -> {
-                        val tracks = trackRepository.getTracks(currentQueue.albumId)
-                        LoadedTracks(
-                            queueItems = tracks.map { track ->
-                                PlayerQueueItem(queueItemId = track.id, track = track)
-                            },
-                            startIndex = resolvePlaybackStartIndex(
-                                tracks = tracks,
-                                startTrackId = startTrackId,
-                                startIndexHint = startIndexHint,
-                            ),
-                        )
-                    }
-
                     is PlaybackQueue.Folder -> {
                         val tracks = trackRepository.getTracksInDirectory(currentQueue.directoryPath)
                         LoadedTracks(
@@ -295,7 +281,6 @@ class PlayerViewModel(
 
     private fun PlaybackQueue.artworkTarget(): QueueArtworkTarget? {
         return when (this) {
-            is PlaybackQueue.Album -> QueueArtworkTarget(QUEUE_TYPE_ALBUM, albumId.toString())
             is PlaybackQueue.Playlist -> QueueArtworkTarget(QUEUE_TYPE_PLAYLIST, playlistId.toString())
             is PlaybackQueue.Folder -> QueueArtworkTarget(QUEUE_TYPE_FOLDER, directoryPath)
         }
@@ -343,7 +328,6 @@ class PlayerViewModel(
             }
         }
 
-        private const val QUEUE_TYPE_ALBUM = "album"
         private const val QUEUE_TYPE_PLAYLIST = "playlist"
         private const val QUEUE_TYPE_FOLDER = "folder"
     }

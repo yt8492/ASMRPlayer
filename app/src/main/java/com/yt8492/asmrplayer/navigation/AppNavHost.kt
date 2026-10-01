@@ -41,7 +41,6 @@ import com.yt8492.asmrplayer.ui.player.PlaybackQueue
 import com.yt8492.asmrplayer.ui.player.PlayerRoute
 import com.yt8492.asmrplayer.ui.playlist.PlaylistDetailRoute
 import com.yt8492.asmrplayer.ui.playlist.PlaylistListRoute
-import com.yt8492.asmrplayer.ui.track.TrackListRoute
 
 private const val ScreenFadeDurationMillis = 120
 
@@ -157,31 +156,6 @@ fun AppNavHost(
             )
         }
         composable(
-            route = "track_list/{albumId}?title={title}&art={art}",
-            arguments = listOf(
-                navArgument("albumId") { type = NavType.LongType },
-                navArgument("title") { type = NavType.StringType; defaultValue = "" },
-                navArgument("art") { type = NavType.StringType; defaultValue = "" },
-            ),
-        ) { backStackEntry ->
-            val albumId = backStackEntry.arguments?.getLong("albumId") ?: return@composable
-            val albumTitle = backStackEntry.arguments?.getString("title").orEmpty()
-            val albumArt = backStackEntry.arguments?.getString("art").orEmpty()
-            val albumArtUri = albumArt.takeIf { it.isNotEmpty() }?.let { Uri.parse(it) }
-            TrackListRoute(
-                albumId = albumId,
-                onBack = { navController.popBackStack() },
-                onTrackClick = { tracks, index ->
-                    val trackId = tracks.getOrNull(index)?.id ?: return@TrackListRoute
-                    val title = Uri.encode(albumTitle)
-                    val art = Uri.encode(albumArtUri?.toString() ?: "")
-                    navController.navigate("player/album/$albumId/$trackId?title=$title&art=$art")
-                },
-                modifier = Modifier.fillMaxSize(),
-                bottomBar = bottomBar,
-            )
-        }
-        composable(
             route = "playlist_detail/{playlistId}?name={name}",
             arguments = listOf(
                 navArgument("playlistId") { type = NavType.LongType },
@@ -203,31 +177,6 @@ fun AppNavHost(
                     )
                 },
                 bottomBar = bottomBar,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
-        composable(
-            route = "player/album/{albumId}/{trackId}?title={title}&art={art}",
-            arguments = listOf(
-                navArgument("albumId") { type = NavType.LongType },
-                navArgument("trackId") { type = NavType.LongType },
-                navArgument("title") { type = NavType.StringType; defaultValue = "" },
-                navArgument("art") { type = NavType.StringType; defaultValue = "" },
-            ),
-        ) { backStackEntry ->
-            val albumId = backStackEntry.arguments?.getLong("albumId") ?: return@composable
-            val trackId = backStackEntry.arguments?.getLong("trackId") ?: return@composable
-            val albumTitle = backStackEntry.arguments?.getString("title").orEmpty()
-            val albumArt = backStackEntry.arguments?.getString("art").orEmpty()
-            val albumArtUri = albumArt.takeIf { it.isNotEmpty() }?.let { Uri.parse(it) }
-            PlayerRoute(
-                queue = PlaybackQueue.Album(
-                    albumId = albumId,
-                    albumTitle = albumTitle,
-                    albumArtUri = albumArtUri,
-                ),
-                startTrackId = trackId,
-                onBack = { navController.popBackStack() },
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -303,14 +252,6 @@ private fun NavHostController.navigateToPlaybackDestination(destination: Playbac
             val path = Uri.encode(destination.folderPath)
             val title = Uri.encode(destination.folderTitle)
             navigate("player/folder/${destination.trackId}?path=$path&title=$title") {
-                launchSingleTop = true
-            }
-        }
-
-        else -> {
-            val title = Uri.encode(destination.albumTitle)
-            val art = Uri.encode(destination.albumArtUri?.toString() ?: "")
-            navigate("player/album/${destination.albumId}/${destination.trackId}?title=$title&art=$art") {
                 launchSingleTop = true
             }
         }

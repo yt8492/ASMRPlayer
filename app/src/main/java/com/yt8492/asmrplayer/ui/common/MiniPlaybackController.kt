@@ -255,10 +255,6 @@ private fun MediaController.toMiniPlaybackState(): MiniPlaybackState? {
         metadataArtworkUri = mediaItem.mediaMetadata.artworkUri,
         queueType = queueType,
         queueKey = when (queueType) {
-            PlaybackService.QUEUE_TYPE_ALBUM -> extras.getLong(PlaybackService.EXTRA_ALBUM_ID, -1L)
-                .takeIf { it >= 0 }
-                ?.toString()
-
             PlaybackService.QUEUE_TYPE_PLAYLIST -> extras.getLong(PlaybackService.EXTRA_PLAYLIST_ID, -1L)
                 .takeIf { it >= 0 }
                 ?.toString()
@@ -275,23 +271,16 @@ private fun MediaController.toMiniPlaybackState(): MiniPlaybackState? {
 private fun MediaItem.toPlaybackDestination(currentIndex: Int): PlaybackDestination? {
     val extras = mediaMetadata.extras
     val queueType = extras?.getString(PlaybackService.EXTRA_QUEUE_TYPE)
-        ?.takeIf { it.isNotEmpty() }
-        ?: PlaybackService.QUEUE_TYPE_ALBUM
+        ?.takeIf { it == PlaybackService.QUEUE_TYPE_PLAYLIST || it == PlaybackService.QUEUE_TYPE_FOLDER }
+        ?: return null
     val trackId = mediaId.toLongOrNull() ?: return null
-    val albumId = extras?.getLong(PlaybackService.EXTRA_ALBUM_ID, -1L) ?: -1L
     val playlistId = extras?.getLong(PlaybackService.EXTRA_PLAYLIST_ID, -1L) ?: -1L
-    if (queueType == PlaybackService.QUEUE_TYPE_ALBUM && albumId < 0) return null
     if (queueType == PlaybackService.QUEUE_TYPE_PLAYLIST && playlistId < 0) return null
     return PlaybackDestination(
         queueType = queueType,
-        albumId = albumId,
         playlistId = playlistId,
         trackId = trackId,
         startIndex = currentIndex.takeIf { it >= 0 },
-        albumTitle = mediaMetadata.albumTitle?.toString().orEmpty(),
-        albumArtUri = extras?.getString(PlaybackService.EXTRA_ALBUM_ART_URI)
-            ?.takeIf { it.isNotEmpty() }
-            ?.let { Uri.parse(it) },
         playlistName = extras?.getString(PlaybackService.EXTRA_PLAYLIST_NAME).orEmpty(),
         folderPath = extras?.getString(PlaybackService.EXTRA_FOLDER_PATH).orEmpty(),
         folderTitle = extras?.getString(PlaybackService.EXTRA_FOLDER_TITLE).orEmpty(),

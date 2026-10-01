@@ -80,10 +80,6 @@ class SettingsViewModel(
         }
     }
 
-    fun permissionDenied() {
-        _uiState.update { it.copy(message = "音声へのアクセス許可が必要です。") }
-    }
-
     fun consumeMessage() = _uiState.update { it.copy(message = null) }
 
     private fun perform(label: String, action: suspend () -> String) {

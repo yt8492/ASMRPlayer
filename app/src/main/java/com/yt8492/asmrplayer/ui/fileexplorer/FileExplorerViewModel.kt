@@ -102,23 +102,6 @@ class FileExplorerViewModel(
             runCatching {
                 if (DocumentPath.isDocumentPath(currentPath)) {
                     repository.scanDirectory(currentPath)
-                } else if (currentPath.isNotEmpty()) {
-                    val scanCompleted = runCatching {
-                        repository.scanDirectory(currentPath)
-                    }.onFailure { throwable ->
-                        if (throwable is CancellationException) throw throwable
-                        Timber.w(
-                            throwable,
-                            "フォルダのメディアスキャンに失敗しました pathLength=%d",
-                            currentPath.length,
-                        )
-                    }.getOrDefault(false)
-                    if (!scanCompleted) {
-                        Timber.w(
-                            "フォルダのメディアスキャンが完了しませんでした pathLength=%d",
-                            currentPath.length,
-                        )
-                    }
                 }
                 repository.getContent(currentPath)
             }.onSuccess { content ->

@@ -17,7 +17,7 @@ internal data class DocumentPath(val treeUri: String, val documentId: String) {
     }
 }
 
-// MediaStoreのIDを維持し、追加フォルダには独立した正のID領域を割り当てる。
+// 登録済みフォルダの曲とプレイリストの参照を維持するため、IDのオフセットは変更しない。
 internal const val DOCUMENT_TRACK_ID_BASE = 1L shl 62
 internal fun documentTrackId(id: Long): Long {
     require(id in 1 until DOCUMENT_TRACK_ID_BASE)
