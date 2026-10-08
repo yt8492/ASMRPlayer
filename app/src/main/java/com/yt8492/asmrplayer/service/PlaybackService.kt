@@ -3,7 +3,6 @@ package com.yt8492.asmrplayer.service
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.content.Context
 import android.content.Intent
 import androidx.annotation.OptIn
 import androidx.core.app.NotificationManagerCompat
@@ -17,6 +16,8 @@ import androidx.media3.session.MediaSessionService
 import androidx.media3.ui.PlayerNotificationManager
 import com.yt8492.asmrplayer.MainActivity
 import com.yt8492.asmrplayer.R
+import com.yt8492.asmrplayer.playback.putPlaybackRequest
+import com.yt8492.asmrplayer.playback.toPlaybackRequest
 import timber.log.Timber
 
 @OptIn(UnstableApi::class)
@@ -52,18 +53,9 @@ class PlaybackService : MediaSessionService() {
                 }
 
                 override fun createCurrentContentIntent(player: Player): PendingIntent {
-                    val metadata = player.currentMediaItem?.mediaMetadata
-                    val extras = metadata?.extras
                     val intent = Intent(this@PlaybackService, MainActivity::class.java).apply {
-                        action = ACTION_OPEN_PLAYER
                         flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                        putExtra(EXTRA_QUEUE_TYPE, extras?.getString(EXTRA_QUEUE_TYPE).orEmpty())
-                        putExtra(EXTRA_PLAYLIST_ID, extras?.getLong(EXTRA_PLAYLIST_ID, -1L) ?: -1L)
-                        putExtra(EXTRA_TRACK_ID, player.currentMediaItem?.mediaId?.toLongOrNull() ?: -1L)
-                        putExtra(EXTRA_START_INDEX, player.currentMediaItemIndex)
-                        putExtra(EXTRA_PLAYLIST_NAME, extras?.getString(EXTRA_PLAYLIST_NAME).orEmpty())
-                        putExtra(EXTRA_FOLDER_PATH, extras?.getString(EXTRA_FOLDER_PATH).orEmpty())
-                        putExtra(EXTRA_FOLDER_TITLE, extras?.getString(EXTRA_FOLDER_TITLE).orEmpty())
+                        player.currentMediaItem?.toPlaybackRequest(player.currentMediaItemIndex)?.let(::putPlaybackRequest)
                     }
                     return PendingIntent.getActivity(
                         this@PlaybackService,
@@ -140,17 +132,6 @@ class PlaybackService : MediaSessionService() {
     }
 
     companion object {
-        const val ACTION_OPEN_PLAYER = "com.yt8492.asmrplayer.action.OPEN_PLAYER"
-        const val EXTRA_QUEUE_TYPE = "com.yt8492.asmrplayer.extra.QUEUE_TYPE"
-        const val EXTRA_PLAYLIST_ID = "com.yt8492.asmrplayer.extra.PLAYLIST_ID"
-        const val EXTRA_TRACK_ID = "com.yt8492.asmrplayer.extra.TRACK_ID"
-        const val EXTRA_START_INDEX = "com.yt8492.asmrplayer.extra.START_INDEX"
-        const val EXTRA_PLAYLIST_NAME = "com.yt8492.asmrplayer.extra.PLAYLIST_NAME"
-        const val EXTRA_FOLDER_PATH = "com.yt8492.asmrplayer.extra.FOLDER_PATH"
-        const val EXTRA_FOLDER_TITLE = "com.yt8492.asmrplayer.extra.FOLDER_TITLE"
-        const val QUEUE_TYPE_PLAYLIST = "playlist"
-        const val QUEUE_TYPE_FOLDER = "folder"
-
         private const val NOTIFICATION_ID = 1
         private const val NOTIFICATION_CHANNEL_ID = "asmrplayer_playback"
     }

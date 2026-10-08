@@ -1,9 +1,9 @@
 package com.yt8492.asmrplayer.navigation
 
 import android.net.Uri
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,22 +11,20 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.platform.LocalContext
-import com.yt8492.asmrplayer.data.repository.LibrarySettingsRepository
-import com.yt8492.asmrplayer.ui.settings.SettingsRoute
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -34,13 +32,16 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.yt8492.asmrplayer.service.PlaybackService
-import com.yt8492.asmrplayer.ui.fileexplorer.FileExplorerRoute
+import com.yt8492.asmrplayer.di.appContainer
+import com.yt8492.asmrplayer.playback.model.PlaybackQueue
+import com.yt8492.asmrplayer.playback.model.PlaybackRequest
 import com.yt8492.asmrplayer.ui.common.MiniPlaybackController
-import com.yt8492.asmrplayer.ui.player.PlaybackQueue
+import com.yt8492.asmrplayer.ui.common.PlaybackConnectionProvider
+import com.yt8492.asmrplayer.ui.fileexplorer.FileExplorerRoute
 import com.yt8492.asmrplayer.ui.player.PlayerRoute
 import com.yt8492.asmrplayer.ui.playlist.PlaylistDetailRoute
 import com.yt8492.asmrplayer.ui.playlist.PlaylistListRoute
+import com.yt8492.asmrplayer.ui.settings.SettingsRoute
 
 private const val ScreenFadeDurationMillis = 120
 
@@ -48,10 +49,10 @@ private const val ScreenFadeDurationMillis = 120
 fun AppNavHost(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
-    playbackDestination: PlaybackDestination? = null,
+    playbackDestination: PlaybackRequest? = null,
 ) {
     val context = LocalContext.current
-    val settings = remember { LibrarySettingsRepository(context) }
+    val settings = remember { context.appContainer().librarySettings }
     var setupComplete by remember { mutableStateOf(settings.isSetupComplete) }
     if (!setupComplete) {
         SettingsRoute(
@@ -64,198 +65,178 @@ fun AppNavHost(
         return
     }
 
-    LaunchedEffect(playbackDestination?.requestId) {
-        val destination = playbackDestination ?: return@LaunchedEffect
-        navController.navigateToPlaybackDestination(destination)
-    }
+    PlaybackConnectionProvider {
+        LaunchedEffect(playbackDestination?.requestId) {
+            val destination = playbackDestination ?: return@LaunchedEffect
+            navController.navigateToPlaybackRequest(destination)
+        }
 
-    val backStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = backStackEntry?.destination?.route
-    var fileExplorerResetRequestKey by remember { mutableIntStateOf(0) }
-    var playlistListResetRequestKey by remember { mutableIntStateOf(0) }
-    val shouldShowMiniPlaybackController = currentRoute?.startsWith("player/") != true
-    val bottomBar: @Composable () -> Unit = {
-        Column {
-            if (shouldShowMiniPlaybackController) {
-                MiniPlaybackController(
-                    onOpenPlayer = navController::navigateToPlaybackDestination,
+        val backStackEntry by navController.currentBackStackEntryAsState()
+        val currentRoute = backStackEntry?.destination?.route
+        var fileExplorerResetRequestKey by remember { mutableIntStateOf(0) }
+        var playlistListResetRequestKey by remember { mutableIntStateOf(0) }
+        val shouldShowMiniPlaybackController = currentRoute?.startsWith("player/") != true
+        val bottomBar: @Composable () -> Unit = {
+            Column {
+                if (shouldShowMiniPlaybackController) {
+                    MiniPlaybackController(
+                        onOpenPlayer = navController::navigateToPlaybackRequest,
+                    )
+                }
+                MainNavigationBar(
+                    currentRoute = currentRoute,
+                    onNavigateToPlaylists = {
+                        if (currentRoute == "playlist_list") {
+                            playlistListResetRequestKey += 1
+                        } else {
+                            navController.navigate("playlist_list") {
+                                launchSingleTop = true
+                                popUpTo("file_explorer")
+                            }
+                        }
+                    },
+                    onNavigateToFiles = {
+                        if (currentRoute == "file_explorer") {
+                            fileExplorerResetRequestKey += 1
+                        } else {
+                            navController.navigate("file_explorer") {
+                                launchSingleTop = true
+                                popUpTo("file_explorer")
+                            }
+                        }
+                    },
                 )
             }
-            MainNavigationBar(
-                currentRoute = currentRoute,
-                onNavigateToPlaylists = {
-                    if (currentRoute == "playlist_list") {
-                        playlistListResetRequestKey += 1
-                    } else {
-                        navController.navigate("playlist_list") {
-                            launchSingleTop = true
-                            popUpTo("file_explorer")
-                        }
-                    }
-                },
-                onNavigateToFiles = {
-                    if (currentRoute == "file_explorer") {
-                        fileExplorerResetRequestKey += 1
-                    } else {
-                        navController.navigate("file_explorer") {
-                            launchSingleTop = true
-                            popUpTo("file_explorer")
-                        }
-                    }
-                },
-            )
         }
-    }
 
-    NavHost(
-        navController = navController,
-        startDestination = "file_explorer",
-        modifier = modifier.background(MaterialTheme.colorScheme.scrim),
-        enterTransition = {
-            fadeIn(animationSpec = tween(durationMillis = ScreenFadeDurationMillis))
-        },
-        exitTransition = {
-            fadeOut(animationSpec = tween(durationMillis = ScreenFadeDurationMillis))
-        },
-        popEnterTransition = {
-            fadeIn(animationSpec = tween(durationMillis = ScreenFadeDurationMillis))
-        },
-        popExitTransition = {
-            fadeOut(animationSpec = tween(durationMillis = ScreenFadeDurationMillis))
-        },
-    ) {
-        composable("settings") {
-            SettingsRoute(
-                onBack = { navController.popBackStack() },
-                bottomBar = bottomBar,
-            )
-        }
-        composable("playlist_list") {
-            PlaylistListRoute(
-                modifier = Modifier.fillMaxSize(),
-                bottomBar = bottomBar,
-                resetRequestKey = playlistListResetRequestKey,
-                onPlaylistClick = { playlist ->
-                    val name = Uri.encode(playlist.name)
-                    navController.navigate("playlist_detail/${playlist.id}?name=$name")
-                },
-            )
-        }
-        composable("file_explorer") {
-            FileExplorerRoute(
-                onOpenSettings = { navController.navigate("settings") { launchSingleTop = true } },
-                modifier = Modifier.fillMaxSize(),
-                bottomBar = bottomBar,
-                resetRequestKey = fileExplorerResetRequestKey,
-                onTrackClick = { directoryPath, directoryTitle, tracks, index ->
-                    val trackId = tracks.getOrNull(index)?.id ?: return@FileExplorerRoute
-                    val path = Uri.encode(directoryPath)
-                    val title = Uri.encode(directoryTitle)
-                    navController.navigate("player/folder/$trackId?path=$path&title=$title")
-                },
-            )
-        }
-        composable(
-            route = "playlist_detail/{playlistId}?name={name}",
-            arguments = listOf(
-                navArgument("playlistId") { type = NavType.LongType },
-                navArgument("name") { type = NavType.StringType; defaultValue = "" },
-            ),
-        ) { backStackEntry ->
-            val playlistId = backStackEntry.arguments?.getLong("playlistId") ?: return@composable
-            val playlistName = backStackEntry.arguments?.getString("name").orEmpty()
-            PlaylistDetailRoute(
-                playlistId = playlistId,
-                onBack = { navController.popBackStack() },
-                onTrackClick = { playlistTracks, index ->
-                    val playlistTrack = playlistTracks.getOrNull(index) ?: return@PlaylistDetailRoute
-                    val trackId = playlistTrack.track.id
-                    val name = Uri.encode(playlistName)
-                    navController.navigate(
-                        "player/playlist/$playlistId/$trackId?name=$name" +
-                            "&playlistTrackId=${playlistTrack.playlistTrackId}&startIndex=$index",
-                    )
-                },
-                bottomBar = bottomBar,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
-        composable(
-            route = "player/playlist/{playlistId}/{trackId}?name={name}&playlistTrackId={playlistTrackId}&startIndex={startIndex}",
-            arguments = listOf(
-                navArgument("playlistId") { type = NavType.LongType },
-                navArgument("trackId") { type = NavType.LongType },
-                navArgument("name") { type = NavType.StringType; defaultValue = "" },
-                navArgument("playlistTrackId") { type = NavType.LongType; defaultValue = -1L },
-                navArgument("startIndex") { type = NavType.IntType; defaultValue = -1 },
-            ),
-        ) { backStackEntry ->
-            val playlistId = backStackEntry.arguments?.getLong("playlistId") ?: return@composable
-            val trackId = backStackEntry.arguments?.getLong("trackId") ?: return@composable
-            val playlistName = backStackEntry.arguments?.getString("name").orEmpty()
-            val playlistTrackId = backStackEntry.arguments
-                ?.getLong("playlistTrackId")
-                ?.takeIf { it >= 0 }
-            val startIndex = backStackEntry.arguments
-                ?.getInt("startIndex")
-                ?.takeIf { it >= 0 }
-            PlayerRoute(
-                queue = PlaybackQueue.Playlist(
+        NavHost(
+            navController = navController,
+            startDestination = "file_explorer",
+            modifier = modifier.background(MaterialTheme.colorScheme.scrim),
+            enterTransition = {
+                fadeIn(animationSpec = tween(durationMillis = ScreenFadeDurationMillis))
+            },
+            exitTransition = {
+                fadeOut(animationSpec = tween(durationMillis = ScreenFadeDurationMillis))
+            },
+            popEnterTransition = {
+                fadeIn(animationSpec = tween(durationMillis = ScreenFadeDurationMillis))
+            },
+            popExitTransition = {
+                fadeOut(animationSpec = tween(durationMillis = ScreenFadeDurationMillis))
+            },
+        ) {
+            composable("settings") {
+                SettingsRoute(
+                    onBack = { navController.popBackStack() },
+                    bottomBar = bottomBar,
+                )
+            }
+            composable("playlist_list") {
+                PlaylistListRoute(
+                    modifier = Modifier.fillMaxSize(),
+                    bottomBar = bottomBar,
+                    resetRequestKey = playlistListResetRequestKey,
+                    onPlaylistClick = { playlist ->
+                        val name = Uri.encode(playlist.name)
+                        navController.navigate("playlist_detail/${playlist.id}?name=$name")
+                    },
+                )
+            }
+            composable("file_explorer") {
+                FileExplorerRoute(
+                    onOpenSettings = { navController.navigate("settings") { launchSingleTop = true } },
+                    modifier = Modifier.fillMaxSize(),
+                    bottomBar = bottomBar,
+                    resetRequestKey = fileExplorerResetRequestKey,
+                    onTrackClick = { directoryPath, directoryTitle, tracks, index ->
+                        val trackId = tracks.getOrNull(index)?.id ?: return@FileExplorerRoute
+                        navController.navigateToPlaybackRequest(PlaybackRequest(PlaybackQueue.Folder(directoryPath, directoryTitle), trackId))
+                    },
+                )
+            }
+            composable(
+                route = "playlist_detail/{playlistId}?name={name}",
+                arguments = listOf(
+                    navArgument("playlistId") { type = NavType.LongType },
+                    navArgument("name") { type = NavType.StringType; defaultValue = "" },
+                ),
+            ) { backStackEntry ->
+                val playlistId = backStackEntry.arguments?.getLong("playlistId") ?: return@composable
+                val playlistName = backStackEntry.arguments?.getString("name").orEmpty()
+                PlaylistDetailRoute(
                     playlistId = playlistId,
-                    playlistName = playlistName,
+                    onBack = { navController.popBackStack() },
+                    onTrackClick = { playlistTracks, index ->
+                        val playlistTrack = playlistTracks.getOrNull(index) ?: return@PlaylistDetailRoute
+                        val trackId = playlistTrack.track.id
+                        navController.navigateToPlaybackRequest(PlaybackRequest(
+                            queue = PlaybackQueue.Playlist(playlistId, playlistName), trackId = trackId,
+                            playlistTrackId = playlistTrack.playlistTrackId, startIndex = index,
+                        ))
+                    },
+                    bottomBar = bottomBar,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            composable(
+                route = "player/playlist/{playlistId}/{trackId}?name={name}&playlistTrackId={playlistTrackId}&startIndex={startIndex}",
+                arguments = listOf(
+                    navArgument("playlistId") { type = NavType.LongType },
+                    navArgument("trackId") { type = NavType.LongType },
+                    navArgument("name") { type = NavType.StringType; defaultValue = "" },
+                    navArgument("playlistTrackId") { type = NavType.LongType; defaultValue = -1L },
+                    navArgument("startIndex") { type = NavType.IntType; defaultValue = -1 },
                 ),
-                startTrackId = trackId,
-                startPlaylistTrackId = playlistTrackId,
-                startIndexHint = startIndex,
-                onBack = { navController.popBackStack() },
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
-        composable(
-            route = "player/folder/{trackId}?path={path}&title={title}",
-            arguments = listOf(
-                navArgument("trackId") { type = NavType.LongType },
-                navArgument("path") { type = NavType.StringType; defaultValue = "" },
-                navArgument("title") { type = NavType.StringType; defaultValue = "" },
-            ),
-        ) { backStackEntry ->
-            val trackId = backStackEntry.arguments?.getLong("trackId") ?: return@composable
-            val directoryPath = backStackEntry.arguments?.getString("path").orEmpty()
-            val directoryTitle = backStackEntry.arguments?.getString("title").orEmpty()
-            PlayerRoute(
-                queue = PlaybackQueue.Folder(
-                    directoryPath = directoryPath,
-                    directoryTitle = directoryTitle,
+            ) { backStackEntry ->
+                val playlistId = backStackEntry.arguments?.getLong("playlistId") ?: return@composable
+                val trackId = backStackEntry.arguments?.getLong("trackId") ?: return@composable
+                val playlistName = backStackEntry.arguments?.getString("name").orEmpty()
+                val playlistTrackId = backStackEntry.arguments
+                    ?.getLong("playlistTrackId")
+                    ?.takeIf { it >= 0 }
+                val startIndex = backStackEntry.arguments
+                    ?.getInt("startIndex")
+                    ?.takeIf { it >= 0 }
+                PlayerRoute(
+                    queue = PlaybackQueue.Playlist(
+                        playlistId = playlistId,
+                        playlistName = playlistName,
+                    ),
+                    startTrackId = trackId,
+                    startPlaylistTrackId = playlistTrackId,
+                    startIndexHint = startIndex,
+                    onBack = { navController.popBackStack() },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            composable(
+                route = "player/folder/{trackId}?path={path}&title={title}",
+                arguments = listOf(
+                    navArgument("trackId") { type = NavType.LongType },
+                    navArgument("path") { type = NavType.StringType; defaultValue = "" },
+                    navArgument("title") { type = NavType.StringType; defaultValue = "" },
                 ),
-                startTrackId = trackId,
-                onBack = { navController.popBackStack() },
-                modifier = Modifier.fillMaxSize(),
-            )
+            ) { backStackEntry ->
+                val trackId = backStackEntry.arguments?.getLong("trackId") ?: return@composable
+                val directoryPath = backStackEntry.arguments?.getString("path").orEmpty()
+                val directoryTitle = backStackEntry.arguments?.getString("title").orEmpty()
+                PlayerRoute(
+                    queue = PlaybackQueue.Folder(
+                        directoryPath = directoryPath,
+                        directoryTitle = directoryTitle,
+                    ),
+                    startTrackId = trackId,
+                    onBack = { navController.popBackStack() },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
     }
 }
 
-private fun NavHostController.navigateToPlaybackDestination(destination: PlaybackDestination) {
-    when (destination.queueType) {
-        PlaybackService.QUEUE_TYPE_PLAYLIST -> {
-            val name = Uri.encode(destination.playlistName)
-            val startIndexQuery = destination.startIndex?.let { "&startIndex=$it" }.orEmpty()
-            navigate(
-                "player/playlist/${destination.playlistId}/${destination.trackId}" +
-                    "?name=$name&playlistTrackId=-1$startIndexQuery",
-            ) {
-                launchSingleTop = true
-            }
-        }
-
-        PlaybackService.QUEUE_TYPE_FOLDER -> {
-            val path = Uri.encode(destination.folderPath)
-            val title = Uri.encode(destination.folderTitle)
-            navigate("player/folder/${destination.trackId}?path=$path&title=$title") {
-                launchSingleTop = true
-            }
-        }
-    }
+private fun NavHostController.navigateToPlaybackRequest(destination: PlaybackRequest) {
+    navigate(destination.toPlayerRoute()) { launchSingleTop = true }
 }
 
 @Composable

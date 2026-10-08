@@ -1,15 +1,13 @@
 package com.yt8492.asmrplayer.ui.playlist
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.yt8492.asmrplayer.data.local.AppDatabase
+import com.yt8492.asmrplayer.core.coroutines.runSuspendCatching
 import com.yt8492.asmrplayer.data.repository.PlaylistRepository
-import com.yt8492.asmrplayer.data.repository.PlaylistRepositoryImpl
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -22,7 +20,10 @@ class PlaylistListViewModel(
 
     init {
         viewModelScope.launch {
-            playlistRepository.observePlaylists().collect { playlists ->
+            playlistRepository.observePlaylists() .catch { error ->
+                Timber.e(error, "プレイリストの取得に失敗しました")
+                _uiState.update { it.copy(errorMessage = "プレイリストの取得に失敗しました") }
+            }.collect { playlists ->
                 _uiState.update { it.copy(playlists = playlists) }
             }
         }
@@ -32,7 +33,7 @@ class PlaylistListViewModel(
         val trimmedName = name.trim()
         if (trimmedName.isEmpty()) return
         viewModelScope.launch {
-            runCatching {
+            runSuspendCatching {
                 playlistRepository.createPlaylist(trimmedName)
             }.onFailure { throwable ->
                 Timber.e(throwable, "プレイリストの作成に失敗しました")
@@ -47,7 +48,7 @@ class PlaylistListViewModel(
         val trimmedName = name.trim()
         if (trimmedName.isEmpty()) return
         viewModelScope.launch {
-            runCatching {
+            runSuspendCatching {
                 playlistRepository.renamePlaylist(playlistId, trimmedName)
             }.onFailure { throwable ->
                 Timber.e(throwable, "プレイリスト名の変更に失敗しました playlistId=%d", playlistId)
@@ -60,7 +61,7 @@ class PlaylistListViewModel(
 
     fun deletePlaylist(playlistId: Long) {
         viewModelScope.launch {
-            runCatching {
+            runSuspendCatching {
                 playlistRepository.deletePlaylist(playlistId)
             }.onFailure { throwable ->
                 Timber.e(throwable, "プレイリストの削除に失敗しました playlistId=%d", playlistId)
@@ -88,18 +89,4 @@ class PlaylistListViewModel(
         _uiState.update { it.copy(errorMessage = null) }
     }
 
-    companion object {
-        fun provideFactory(context: Context): ViewModelProvider.Factory {
-            val applicationContext = context.applicationContext
-            return object : ViewModelProvider.Factory {
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    val repository = PlaylistRepositoryImpl(
-                        AppDatabase.getInstance(applicationContext).playlistDao(),
-                    )
-                    @Suppress("UNCHECKED_CAST")
-                    return PlaylistListViewModel(repository) as T
-                }
-            }
-        }
-    }
 }

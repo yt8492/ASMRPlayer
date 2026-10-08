@@ -10,8 +10,14 @@ import android.provider.DocumentsContract.Document
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.yt8492.asmrplayer.data.local.AppDatabase
-import com.yt8492.asmrplayer.data.local.LibraryDocumentEntity
+import com.yt8492.asmrplayer.data.datasource.document.FolderDocument
+import com.yt8492.asmrplayer.data.datasource.document.FolderDocumentSource
+import com.yt8492.asmrplayer.data.library.DOCUMENT_TRACK_ID_BASE
+import com.yt8492.asmrplayer.data.library.DocumentPath
+import com.yt8492.asmrplayer.data.local.database.AppDatabase
+import com.yt8492.asmrplayer.data.repository.impl.FileExplorerRepositoryImpl
+import com.yt8492.asmrplayer.data.repository.impl.LibraryFolderRepositoryImpl
+import com.yt8492.asmrplayer.data.repository.impl.TrackRepositoryImpl
 import java.io.IOException
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -33,7 +39,7 @@ class LibraryFolderRepositoryTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).build()
         source = FakeDocumentSource()
-        repository = LibraryFolderRepository(context, database, source)
+        repository = LibraryFolderRepositoryImpl(database.libraryFolderDao(), source)
     }
 
     @After
@@ -42,7 +48,7 @@ class LibraryFolderRepositoryTest {
     @Test
     fun 音声権限なしでファイル一覧は手動追加フォルダだけを表示する() = runBlocking {
         repository.addFolder(tree)
-        val explorer = FileExplorerRepositoryImpl(contextWithoutMediaStoreAccess(), repository)
+        val explorer = FileExplorerRepositoryImpl(repository)
 
         val root = explorer.getContent("")
         assertEquals(listOf(rootPath.encode()), root.directories.map { it.path })
@@ -58,7 +64,7 @@ class LibraryFolderRepositoryTest {
 
     @Test
     fun フォルダ未登録時や従来パスからの表示でも自動検出一覧を返さない() = runBlocking {
-        val explorer = FileExplorerRepositoryImpl(contextWithoutMediaStoreAccess(), repository)
+        val explorer = FileExplorerRepositoryImpl(repository)
         for (path in listOf("", "Music/")) {
             val content = explorer.getContent(path)
             assertEquals("", content.currentPath)
@@ -71,7 +77,7 @@ class LibraryFolderRepositoryTest {
     @Test
     fun 音声権限なしで選択フォルダの音声と画像と子フォルダを取得できる() = runBlocking {
         repository.addFolder(tree)
-        val content = repository.getContent(rootPath)
+        val content = repository.getContent(rootPath.encode())
         assertEquals("作品", content.directoryTitle)
         assertEquals("", content.parentPath)
         assertEquals("voice.wav", content.tracks.single().title)
@@ -79,7 +85,7 @@ class LibraryFolderRepositoryTest {
         assertEquals("cover.png", content.images.single().title)
         assertEquals("content", content.tracks.single().uri.scheme)
         val childPath = DocumentPath.parse(content.directories.single().path)!!
-        val child = repository.getContent(childPath)
+        val child = repository.getContent(childPath.encode())
         assertEquals(rootPath.encode(), child.parentPath)
         assertEquals("extra.wav", child.tracks.single().title)
         assertEquals(2, repository.getFolders().single().audioCount)
@@ -88,26 +94,26 @@ class LibraryFolderRepositoryTest {
     @Test
     fun 再読み込みで追加削除を反映して既存トラックのIDを保持する() = runBlocking {
         repository.addFolder(tree)
-        val old = repository.getContent(rootPath).tracks.single()
+        val old = repository.getContent(rootPath.encode()).tracks.single()
         source.children["root"] = source.children.getValue("root") + document("new", "new.wav", "audio/wav")
         repository.reloadFolder(tree.toString())
-        val tracks = repository.getContent(rootPath).tracks
+        val tracks = repository.getContent(rootPath.encode()).tracks
         assertEquals(old.id, tracks.single { it.title == old.title }.id)
         assertEquals(2, tracks.size)
         source.children["root"] = source.children.getValue("root").filterNot { it.documentId == "audio" }
         repository.reloadFolder(tree.toString())
         assertTrue(repository.getTracks(listOf(old.id)).isEmpty())
-        assertEquals("new.wav", repository.getContent(rootPath).tracks.single().title)
+        assertEquals("new.wav", repository.getContent(rootPath.encode()).tracks.single().title)
     }
 
     @Test
     fun 途中の読み込み失敗では前回の一覧と曲数を維持する() = runBlocking {
         repository.addFolder(tree)
-        val old = repository.getContent(rootPath)
+        val old = repository.getContent(rootPath.encode())
         source.children["root"] = source.children.getValue("root").filterNot { it.documentId == "audio" }
         source.failParent = "nested"
         assertTrue(runCatching { repository.reloadFolder(tree.toString()) }.exceptionOrNull() is IOException)
-        assertEquals(old.tracks, repository.getContent(rootPath).tracks)
+        assertEquals(old.tracks, repository.getContent(rootPath.encode()).tracks)
         assertEquals(2, repository.getFolders().single().audioCount)
         assertNotNull(repository.getFolders().single().error)
     }
@@ -115,25 +121,25 @@ class LibraryFolderRepositoryTest {
     @Test
     fun 許可取り消しや登録解除後は曲を返さず再追加すると同じIDを使う() = runBlocking {
         repository.addFolder(tree)
-        val trackId = repository.getContent(rootPath).tracks.single().id
+        val trackId = repository.getContent(rootPath.encode()).tracks.single().id
         source.grants.clear()
         assertTrue(repository.getTracks(listOf(trackId)).isEmpty())
-        assertTrue(runCatching { repository.getContent(rootPath) }.exceptionOrNull() is SecurityException)
+        assertTrue(runCatching { repository.getContent(rootPath.encode()) }.exceptionOrNull() is SecurityException)
         repository.removeFolder(tree.toString())
         assertTrue(repository.getFolders().isEmpty())
         repository.addFolder(tree)
-        assertEquals(trackId, repository.getContent(rootPath).tracks.single().id)
+        assertEquals(trackId, repository.getContent(rootPath.encode()).tracks.single().id)
         assertEquals(trackId, repository.getTracks(listOf(trackId)).single().id)
     }
 
     @Test
     fun フォルダ情報だけ復元された場合は再許可待ちを表示し同じフォルダでIDを維持して復旧する() = runBlocking {
         repository.addFolder(tree)
-        val before = repository.getContent(rootPath)
+        val before = repository.getContent(rootPath.encode())
         // バックアップされたDBは残り、OS側の許可だけ失われた状態を再現する。
         source.grants.clear()
-        val restored = LibraryFolderRepository(ApplicationProvider.getApplicationContext(), database, source)
-        val explorer = FileExplorerRepositoryImpl(contextWithoutMediaStoreAccess(), restored)
+        val restored = LibraryFolderRepositoryImpl(database.libraryFolderDao(), source)
+        val explorer = FileExplorerRepositoryImpl(restored)
         val pending = restored.getFolders().single()
         assertFalse(pending.hasPermission)
         assertNull(pending.error)
@@ -157,7 +163,7 @@ class LibraryFolderRepositoryTest {
     @Test
     fun 再許可で別のフォルダを選んでも登録と曲の参照を書き換えない() = runBlocking {
         repository.addFolder(tree)
-        val before = repository.getContent(rootPath)
+        val before = repository.getContent(rootPath.encode())
         source.grants.clear()
         val other = Uri.parse("content://test.documents/tree/other")
         val error = runCatching { repository.restoreFolderAccess(tree.toString(), other) }.exceptionOrNull()
@@ -166,7 +172,7 @@ class LibraryFolderRepositoryTest {
         assertEquals(listOf(tree.toString()), repository.getFolders().map { it.uri })
         assertFalse(repository.getFolders().single().hasPermission)
         repository.restoreFolderAccess(tree.toString(), tree)
-        assertEquals(before.tracks, repository.getContent(rootPath).tracks)
+        assertEquals(before.tracks, repository.getContent(rootPath.encode()).tracks)
     }
 
     @Test
@@ -185,8 +191,8 @@ class LibraryFolderRepositoryTest {
         repository.addFolder(tree)
         val other = Uri.parse("content://other.documents/tree/root")
         repository.addFolder(other)
-        val first = repository.getContent(rootPath).tracks.single()
-        val second = repository.getContent(DocumentPath(other.toString(), "root")).tracks.single()
+        val first = repository.getContent(rootPath.encode()).tracks.single()
+        val second = repository.getContent(DocumentPath(other.toString(), "root").encode()).tracks.single()
         assertNotEquals(first.id, second.id)
         assertEquals(2, repository.getTracks(listOf(first.id, second.id)).size)
     }
@@ -194,7 +200,7 @@ class LibraryFolderRepositoryTest {
     @Test
     fun フォルダと文書IDの特殊文字を含むパスを復元できる() {
         val path = DocumentPath("content://test/tree/primary%3A音声%2F作品", "primary:音声/作品 #1/画像%表紙")
-        assertEquals(path, DocumentPath.parse(normalizeDirectoryPath(path.encode())))
+        assertEquals(path, DocumentPath.parse(path.encode()))
         assertNull(DocumentPath.parse("Music/ASMR/"))
     }
 
@@ -206,16 +212,16 @@ class LibraryFolderRepositoryTest {
             document("zip", "03.zip", "application/zip"),
         )
         repository.addFolder(tree)
-        val content = repository.getContent(rootPath)
+        val content = repository.getContent(rootPath.encode())
         assertEquals(listOf("01.PDF", "02.txt"), content.documents.map { it.name })
         assertTrue(content.tracks.isEmpty())
         assertTrue(content.images.isEmpty())
         assertEquals(2, repository.getFolders().single().documentCount)
-        assertEquals(2, repository.rootDirectories().single().trackCount)
+        assertEquals(2, repository.rootDirectories().single().itemCount)
         val id = content.documents.first().id
         source.children["root"] = source.children.getValue("root").filterNot { it.documentId == "text" }
         repository.reloadFolder(tree.toString())
-        assertEquals(id, repository.getContent(rootPath).documents.single().id)
+        assertEquals(id, repository.getContent(rootPath.encode()).documents.single().id)
         assertEquals(1, repository.getFolders().single().documentCount)
     }
 
@@ -223,22 +229,22 @@ class LibraryFolderRepositoryTest {
     fun 子フォルダの文書も数え読み込み失敗時には前回の一覧を維持する() = runBlocking {
         source.children["nested"] = listOf(document("text", "説明.txt", "text/plain"))
         repository.addFolder(tree)
-        val content = repository.getContent(rootPath)
-        val child = repository.getContent(DocumentPath.parse(content.directories.single().path)!!)
+        val content = repository.getContent(rootPath.encode())
+        val child = repository.getContent(DocumentPath.parse(content.directories.single().path)!!.encode())
         assertEquals("説明.txt", child.documents.single().name)
         assertEquals(1, repository.getFolders().single().documentCount)
         source.failParent = "nested"
         assertTrue(runCatching { repository.reloadFolder(tree.toString()) }.isFailure)
         assertEquals(1, repository.getFolders().single().documentCount)
-        assertEquals(content.tracks, repository.getContent(rootPath).tracks)
+        assertEquals(content.tracks, repository.getContent(rootPath.encode()).tracks)
     }
 
     @Test
     fun 音声権限なしで登録済みの曲だけを指定順と重複を保って取得する() = runBlocking {
         repository.addFolder(tree)
-        val first = repository.getContent(rootPath).tracks.single()
-        val second = repository.getContent(DocumentPath(tree.toString(), "nested")).tracks.single()
-        val tracks = TrackRepositoryImpl(contextWithoutMediaStoreAccess(), repository)
+        val first = repository.getContent(rootPath.encode()).tracks.single()
+        val second = repository.getContent(DocumentPath(tree.toString(), "nested").encode()).tracks.single()
+        val tracks = TrackRepositoryImpl(repository)
         // 過去の端末全体の曲IDが混ざっていても、同じ番号の登録曲に読み替えない。
         val oldId = first.id - DOCUMENT_TRACK_ID_BASE
         assertEquals(
@@ -253,8 +259,8 @@ class LibraryFolderRepositoryTest {
     @Test
     fun 従来のフォルダパスは読み込みもメディアスキャンもしない() = runBlocking {
         val context = contextWithoutMediaStoreAccess()
-        val tracks = TrackRepositoryImpl(context, repository)
-        val explorer = FileExplorerRepositoryImpl(context, repository)
+        val tracks = TrackRepositoryImpl(repository)
+        val explorer = FileExplorerRepositoryImpl(repository)
         assertTrue(tracks.getTracksInDirectory("Music/").isEmpty())
         assertFalse(explorer.scanDirectory("Music/"))
         assertFalse(explorer.scanDirectory(""))
@@ -263,12 +269,38 @@ class LibraryFolderRepositoryTest {
     @Test
     fun 選択フォルダの再読み込みで追加された曲を取得できる() = runBlocking {
         repository.addFolder(tree)
-        val explorer = FileExplorerRepositoryImpl(contextWithoutMediaStoreAccess(), repository)
+        val explorer = FileExplorerRepositoryImpl(repository)
         source.children["root"] = source.children.getValue("root") + document("new", "new.wav", "audio/wav")
         assertTrue(explorer.scanDirectory(rootPath.encode()))
         assertEquals(2, explorer.getContent(rootPath.encode()).tracks.size)
         source.grants.clear()
         assertFalse(explorer.scanDirectory(rootPath.encode()))
+    }
+
+    @Test
+    fun キャンセルされた走査は前回の一覧とエラー状態を書き換えない() = runBlocking {
+        repository.addFolder(tree)
+        val before = repository.getContent(rootPath.encode()).tracks
+        source.cancelParent = "nested"
+        try {
+            repository.reloadFolder(tree.toString())
+            throw AssertionError("キャンセルが伝播する必要がある")
+        } catch (_: kotlinx.coroutines.CancellationException) { }
+        assertEquals(before, repository.getContent(rootPath.encode()).tracks)
+        assertNull(repository.getFolders().single().error)
+    }
+
+    @Test
+    fun 更新時刻とサイズが同じ音声はメタデータを再読込しない() = runBlocking {
+        repository.addFolder(tree)
+        assertEquals(2, source.metadataReads)
+        repository.reloadFolder(tree.toString())
+        assertEquals(2, source.metadataReads)
+        source.children["root"] = source.children.getValue("root").map {
+            if (it.documentId == "audio") it.copy(modifiedAt = 2) else it
+        }
+        repository.reloadFolder(tree.toString())
+        assertEquals(3, source.metadataReads)
     }
 
     private fun contextWithoutMediaStoreAccess(): Context = object : ContextWrapper(
@@ -284,6 +316,8 @@ class LibraryFolderRepositoryTest {
     private inner class FakeDocumentSource : FolderDocumentSource {
         val grants = mutableSetOf<String>()
         var failParent: String? = null
+        var cancelParent: String? = null
+        var metadataReads = 0
         val children = mutableMapOf(
             "root" to listOf(document("audio", "voice.wav", "audio/wav"), document("image", "cover.png", "image/png"),
                 document("nested", "特典", Document.MIME_TYPE_DIR)),
@@ -293,9 +327,10 @@ class LibraryFolderRepositoryTest {
         override fun hasPermission(uri: String) = uri in grants
         override fun persistPermission(uri: Uri) { grants.add(uri.toString()) }
         override fun releasePermission(uri: String) { grants.remove(uri) }
-        override fun readAudioMetadata(item: LibraryDocumentEntity) = item
+        override fun readAudioMetadata(item: FolderDocument): FolderDocument { metadataReads += 1; return item }
 
-        override suspend fun queryDocuments(uri: Uri, treeUri: String, parentId: String?): List<LibraryDocumentEntity> {
+        override suspend fun queryDocuments(uri: Uri, treeUri: String, parentId: String?): List<FolderDocument> {
+            if (parentId != null && parentId == cancelParent) throw kotlinx.coroutines.CancellationException()
             if (parentId != null && parentId == failParent) throw IOException("読み込み失敗")
             val result = if (parentId == null) {
                 listOf(document(DocumentsContract.getDocumentId(uri), "作品", Document.MIME_TYPE_DIR))
@@ -304,7 +339,7 @@ class LibraryFolderRepositoryTest {
         }
     }
 
-    private fun document(id: String, name: String, mime: String) = LibraryDocumentEntity(
+    private fun document(id: String, name: String, mime: String) = FolderDocument(
         treeUri = tree.toString(), documentId = id, parentId = null, name = name,
         mimeType = mime, size = 100, modifiedAt = 1,
     )

@@ -1,16 +1,16 @@
 package com.yt8492.asmrplayer.ui.fileexplorer
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.yt8492.asmrplayer.data.model.AudioDirectory
+import com.yt8492.asmrplayer.data.model.BrowsableDirectory
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -28,7 +28,7 @@ class FileExplorerRefreshTest {
         composeRule.setContent {
             MaterialTheme {
                 FileExplorerScreen(
-                    uiState = FileExplorerUiState(directories = listOf(AudioDirectory("saved/", "復元された作品", 2, hasPermission = false))),
+                    uiState = FileExplorerUiState(directories = listOf(BrowsableDirectory("saved/", "復元された作品", 2, hasPermission = false))),
                     onOpenSettings = { settingsOpened += 1 },
                     onRetry = {},
                     onRefresh = {},

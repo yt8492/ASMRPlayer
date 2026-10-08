@@ -1,17 +1,18 @@
 package com.yt8492.asmrplayer.ui.settings
 
-import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.yt8492.asmrplayer.core.coroutines.runSuspendCatching
 import com.yt8492.asmrplayer.data.model.LibraryFolder
-import com.yt8492.asmrplayer.data.repository.LibraryFolderRepository
 import com.yt8492.asmrplayer.data.repository.DifferentFolderSelectedException
+import com.yt8492.asmrplayer.data.repository.LibraryFolderRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 data class SettingsUiState(
@@ -29,14 +30,17 @@ class SettingsViewModel(
 
     init {
         viewModelScope.launch {
-            folders.observeFolders().collect { values -> _uiState.update { it.copy(folders = values) } }
+            folders.observeFolders().catch { error ->
+                _uiState.update { it.copy(message = "フォルダ一覧を取得できませんでした。") }
+            }.collect { values -> _uiState.update { it.copy(folders = values) } }
         }
     }
 
     fun refreshPermissions() {
         viewModelScope.launch {
-            val values = folders.getFolders()
-            _uiState.update { it.copy(folders = values) }
+            runSuspendCatching { folders.getFolders() }
+                .onSuccess { values -> _uiState.update { it.copy(folders = values) } }
+                .onFailure { _uiState.update { it.copy(message = "フォルダ一覧を取得できませんでした。") } }
         }
     }
 
@@ -98,18 +102,11 @@ class SettingsViewModel(
                 }
                 _uiState.update { it.copy(message = message) }
             } finally {
-                val values = folders.getFolders()
-                _uiState.update { it.copy(folders = values, isLoading = false, loadingLabel = "") }
+                _uiState.update { it.copy(isLoading = false, loadingLabel = "") }
+                if (isActive) refreshPermissions()
+
             }
         }
     }
 
-    companion object {
-        fun factory(context: Context): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T = SettingsViewModel(
-                LibraryFolderRepository(context.applicationContext),
-            ) as T
-        }
-    }
 }

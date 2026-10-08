@@ -3,10 +3,8 @@ package com.yt8492.asmrplayer.ui.playlist
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,7 +14,6 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -29,7 +26,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -46,6 +42,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yt8492.asmrplayer.R
 import com.yt8492.asmrplayer.data.model.Playlist
+import com.yt8492.asmrplayer.di.appContainer
+import com.yt8492.asmrplayer.di.playlistListFactory
+import com.yt8492.asmrplayer.ui.common.PlaylistNameDialog
 import com.yt8492.asmrplayer.ui.common.SingleLineMarqueeText
 
 @Composable
@@ -55,7 +54,7 @@ fun PlaylistListRoute(
     bottomBar: @Composable () -> Unit = {},
     resetRequestKey: Int = 0,
     viewModel: PlaylistListViewModel = viewModel(
-        factory = PlaylistListViewModel.provideFactory(LocalContext.current),
+        factory = LocalContext.current.appContainer().playlistListFactory(),
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -234,43 +233,4 @@ fun PlaylistListScreen(
             confirmText = stringResource(id = R.string.common_save),
         )
     }
-}
-
-@Composable
-fun PlaylistNameDialog(
-    title: String,
-    initialName: String = "",
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
-    confirmText: String,
-) {
-    var name by remember(initialName) { mutableStateOf(initialName) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(text = title) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text(text = stringResource(id = R.string.playlist_name)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(name) },
-                enabled = name.isNotBlank(),
-            ) {
-                Text(text = confirmText)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(id = R.string.common_cancel))
-            }
-        },
-    )
 }

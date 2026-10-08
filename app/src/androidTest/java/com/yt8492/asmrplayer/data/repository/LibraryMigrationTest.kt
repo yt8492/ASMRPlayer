@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.yt8492.asmrplayer.data.local.AppDatabase
+import com.yt8492.asmrplayer.data.local.database.AppDatabase
 import java.util.UUID
 import org.junit.Assert.assertEquals
 import org.junit.Test

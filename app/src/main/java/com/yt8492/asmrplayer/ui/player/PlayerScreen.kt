@@ -1,18 +1,9 @@
 package com.yt8492.asmrplayer.ui.player
 
-import android.content.ComponentName
-import android.content.Intent
-import android.graphics.Paint
 import android.net.Uri
-import android.os.Bundle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,30 +11,22 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.BottomSheetScaffold
@@ -51,220 +34,36 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SheetValue
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.media3.common.MediaItem
-import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
-import androidx.media3.session.MediaController
-import androidx.media3.session.SessionToken
-import coil.compose.AsyncImage
 import com.yt8492.asmrplayer.R
-import com.yt8492.asmrplayer.service.PlaybackService
+import com.yt8492.asmrplayer.playback.loop.ABLoopButtonState
+import com.yt8492.asmrplayer.playback.loop.TrackLoopRangeFactory
 import com.yt8492.asmrplayer.ui.common.SingleLineMarqueeText
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import timber.log.Timber
-
-@Composable
-fun PlayerRoute(
-    queue: PlaybackQueue,
-    startTrackId: Long,
-    startPlaylistTrackId: Long? = null,
-    startIndexHint: Int? = null,
-    onBack: () -> Unit,
-    modifier: Modifier = Modifier,
-    viewModel: PlayerViewModel = viewModel(
-        factory = PlayerViewModel.provideFactory(
-            context = LocalContext.current,
-            queue = queue,
-            startTrackId = startTrackId,
-            startPlaylistTrackId = startPlaylistTrackId,
-            startIndexHint = startIndexHint,
-        ),
-    ),
-) {
-    val context = LocalContext.current
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val sessionToken = remember {
-        SessionToken(context, ComponentName(context, PlaybackService::class.java))
-    }
-    val controllerFuture = remember {
-        MediaController.Builder(context, sessionToken).buildAsync()
-    }
-    val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
-    var controller by remember { mutableStateOf<MediaController?>(null) }
-    var controllerError by remember { mutableStateOf(false) }
-    var isInitialQueuePrepared by rememberSaveable { mutableStateOf(false) }
-
-    DisposableEffect(controllerFuture) {
-        controllerFuture.addListener(
-            {
-                runCatching {
-                    controllerFuture.get()
-                }.onSuccess {
-                    controller = it
-                }.onFailure { throwable ->
-                    Timber.e(throwable, "プレイヤー用 MediaController の接続に失敗しました")
-                    controllerError = true
-                }
-            },
-            mainExecutor,
-        )
-        onDispose {
-            controllerFuture.cancel(true)
-            controller?.release()
-        }
-    }
-
-    LaunchedEffect(controller, uiState.queueItems, uiState.startIndex, isInitialQueuePrepared) {
-        val ctl = controller ?: return@LaunchedEffect
-        if (uiState.queueItems.isEmpty()) return@LaunchedEffect
-        val shouldPrepareInitialQueue = !isInitialQueuePrepared || ctl.mediaItemCount == 0
-        if (!shouldPrepareInitialQueue) return@LaunchedEffect
-        val queueTitle = queue.title
-        val mediaIds = uiState.queueItems.map { it.track.id.toString() }
-        val currentMediaIds = List(ctl.mediaItemCount) { index ->
-            ctl.getMediaItemAt(index).mediaId
-        }
-        val startIndex = uiState.startIndex.takeIf { it in uiState.queueItems.indices } ?: 0
-        if (currentMediaIds == mediaIds) {
-            if (ctl.currentMediaItem?.mediaId != startTrackId.toString() || ctl.currentMediaItemIndex != startIndex) {
-                ctl.seekTo(startIndex, 0)
-                ctl.play()
-            }
-            isInitialQueuePrepared = true
-            return@LaunchedEffect
-        }
-
-        val mediaItems = uiState.queueItems.map { queueItem ->
-            val track = queueItem.track
-            val trackAlbumTitle = track.albumTitle.ifEmpty { queueTitle }
-            MediaItem.Builder()
-                .setUri(track.uri)
-                .setMediaId(track.id.toString())
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setTitle(track.title)
-                        .setArtist(track.artist)
-                        .setAlbumTitle(trackAlbumTitle)
-                        .setArtworkUri(track.albumArtUri)
-                        .setExtras(
-                            Bundle().apply {
-                                when (queue) {
-                                    is PlaybackQueue.Playlist -> {
-                                        putString(PlaybackService.EXTRA_QUEUE_TYPE, PlaybackService.QUEUE_TYPE_PLAYLIST)
-                                        putLong(PlaybackService.EXTRA_PLAYLIST_ID, queue.playlistId)
-                                        putString(PlaybackService.EXTRA_PLAYLIST_NAME, queue.playlistName)
-                                    }
-
-                                    is PlaybackQueue.Folder -> {
-                                        putString(PlaybackService.EXTRA_QUEUE_TYPE, PlaybackService.QUEUE_TYPE_FOLDER)
-                                        putString(PlaybackService.EXTRA_FOLDER_PATH, queue.directoryPath)
-                                        putString(PlaybackService.EXTRA_FOLDER_TITLE, queue.directoryTitle)
-                                    }
-                                }
-                                putLong(PlaybackService.EXTRA_TRACK_ID, track.id)
-                            },
-                        )
-                        .build(),
-                )
-                .build()
-        }
-        ctl.setMediaItems(mediaItems)
-        ctl.seekTo(startIndex, 0)
-        ctl.prepare()
-        ctl.playWhenReady = true
-        isInitialQueuePrepared = true
-        Timber.i(
-            "再生キューを準備しました queue=%s itemCount=%d startIndex=%d",
-            queue.logType(),
-            mediaItems.size,
-            startIndex,
-        )
-    }
-
-    if (controllerError) {
-        Box(
-            modifier = modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(text = stringResource(id = R.string.player_connection_error))
-        }
-    } else if (controller == null) {
-        Box(
-            modifier = modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
-        ) {
-            CircularProgressIndicator()
-        }
-    } else {
-        PlayerScreen(
-            player = controller!!,
-            uiState = uiState,
-            queueTitle = queue.title,
-            queueArtworkLabel = queue.artworkLabel(),
-            onBack = onBack,
-            onCurrentTrackChanged = viewModel::onCurrentTrackChanged,
-            onSaveTrackLoop = viewModel::saveTrackLoop,
-            onDeleteTrackLoop = viewModel::deleteTrackLoop,
-            onSaveTrackArtwork = viewModel::saveTrackArtwork,
-            onDeleteTrackArtwork = viewModel::deleteTrackArtwork,
-            onSaveQueueArtwork = viewModel::saveQueueArtwork,
-            onDeleteQueueArtwork = viewModel::deleteQueueArtwork,
-            onMoveQueueItem = viewModel::moveQueueItem,
-            modifier = modifier,
-        )
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -284,18 +83,9 @@ fun PlayerScreen(
     onMoveQueueItem: (fromIndex: Int, toIndex: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
-    var isPlaying by remember { mutableStateOf(player.isPlaying) }
-    var currentIndex by remember { mutableIntStateOf(player.currentMediaItemIndex) }
-    var positionMs by remember { mutableLongStateOf(0L) }
-    var durationMs by remember { mutableLongStateOf(0L) }
     var seekFeedback by remember { mutableStateOf<SeekFeedback?>(null) }
     var seekFeedbackEventId by remember { mutableIntStateOf(0) }
-    var loopTrackId by remember { mutableStateOf<Long?>(null) }
-    var loopStartMs by remember { mutableStateOf<Long?>(null) }
-    var loopEndMs by remember { mutableStateOf<Long?>(null) }
-    var isLooping by remember { mutableStateOf(false) }
-    var repeatMode by remember { mutableIntStateOf(player.repeatMode) }
+    val playback = rememberPlayerScreenState(player)
     val bottomSheetScaffoldState = rememberBottomSheetScaffoldState()
     val coroutineScope = rememberCoroutineScope()
     val shouldApplySheetTopPadding = bottomSheetScaffoldState.bottomSheetState.currentValue == SheetValue.Expanded ||
@@ -306,36 +96,6 @@ fun PlayerScreen(
         0.dp
     }
 
-    DisposableEffect(player) {
-        val listener = object : Player.Listener {
-            override fun onEvents(player: Player, events: Player.Events) {
-                isPlaying = player.isPlaying
-                currentIndex = player.currentMediaItemIndex
-                durationMs = player.duration.coerceAtLeast(0L)
-                repeatMode = player.repeatMode
-            }
-        }
-        player.addListener(listener)
-        onDispose {
-            player.removeListener(listener)
-        }
-    }
-
-    LaunchedEffect(player) {
-        while (true) {
-            val currentPositionMs = player.currentPosition.coerceAtLeast(0L)
-            durationMs = player.duration.coerceAtLeast(0L)
-            val activeRange = TrackLoopRangeFactory.create(loopStartMs, loopEndMs, durationMs)
-            if (isLooping && activeRange != null && currentPositionMs >= activeRange.endMs) {
-                player.seekTo(activeRange.startMs)
-                positionMs = activeRange.startMs
-            } else {
-                positionMs = currentPositionMs
-            }
-            delay(500)
-        }
-    }
-
     LaunchedEffect(seekFeedbackEventId) {
         if (seekFeedbackEventId > 0) {
             delay(SEEK_FEEDBACK_VISIBLE_MS)
@@ -343,7 +103,7 @@ fun PlayerScreen(
         }
     }
 
-    val currentTrack = uiState.queueItems.getOrNull(currentIndex)?.track
+    val currentTrack = uiState.queueItems.getOrNull(playback.currentIndex)?.track
     val currentTrackId = currentTrack?.id
     var artworkPickerTarget by remember { mutableStateOf<ArtworkPickerTarget?>(null) }
     var artworkMenuExpanded by remember { mutableStateOf(false) }
@@ -352,41 +112,14 @@ fun PlayerScreen(
     ) { imageUri ->
         val target = artworkPickerTarget ?: return@rememberLauncherForActivityResult
         if (imageUri == null) return@rememberLauncherForActivityResult
-        val permissionTaken = runCatching {
-            context.contentResolver.takePersistableUriPermission(
-                imageUri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION,
-            )
-        }.onFailure { throwable ->
-            Timber.w(throwable, "画像の永続 URI 権限取得に失敗しました uriScheme=%s", imageUri.scheme)
-        }.isSuccess
-        if (!permissionTaken) return@rememberLauncherForActivityResult
         when (target) {
             ArtworkPickerTarget.Queue -> onSaveQueueArtwork(imageUri)
             is ArtworkPickerTarget.Track -> onSaveTrackArtwork(target.trackId, imageUri)
         }
     }
 
-    LaunchedEffect(currentTrackId) {
-        onCurrentTrackChanged(currentTrackId)
-        loopTrackId = currentTrackId
-        loopStartMs = null
-        loopEndMs = null
-        isLooping = false
-    }
-
-    LaunchedEffect(currentTrackId, uiState.currentTrackLoop) {
-        val trackLoop = uiState.currentTrackLoop
-        if (trackLoop != null && trackLoop.trackId == currentTrackId) {
-            loopTrackId = trackLoop.trackId
-            loopStartMs = trackLoop.startMs
-            loopEndMs = trackLoop.endMs
-        } else if (trackLoop == null && loopTrackId == currentTrackId) {
-            loopStartMs = null
-            loopEndMs = null
-        }
-        isLooping = false
-    }
+    LaunchedEffect(currentTrackId) { onCurrentTrackChanged(currentTrackId) }
+    BindTrackLoop(playback, currentTrackId, uiState.currentTrackLoop)
 
     BottomSheetScaffold(
         modifier = modifier,
@@ -397,15 +130,15 @@ fun PlayerScreen(
         sheetContent = {
             PlaybackQueueSheet(
                 queueItems = uiState.queueItems,
-                currentIndex = currentIndex,
+                currentIndex = playback.currentIndex,
                 canChangeQueue = player.isCommandAvailable(Player.COMMAND_CHANGE_MEDIA_ITEMS),
                 topPadding = expandedSheetTopPadding,
                 onQueueItemClick = { index ->
-                    if (index != currentIndex && index in uiState.queueItems.indices) {
+                    if (index != playback.currentIndex && index in uiState.queueItems.indices) {
                         player.seekTo(index, 0)
                         player.play()
-                        currentIndex = player.currentMediaItemIndex
-                        positionMs = player.currentPosition.coerceAtLeast(0L)
+                        playback.currentIndex = player.currentMediaItemIndex
+                        playback.positionMs = player.currentPosition.coerceAtLeast(0L)
                     }
                     coroutineScope.launch {
                         bottomSheetScaffoldState.bottomSheetState.partialExpand()
@@ -414,7 +147,7 @@ fun PlayerScreen(
                 onMoveQueueItem = { fromIndex, toIndex ->
                     if (player.isCommandAvailable(Player.COMMAND_CHANGE_MEDIA_ITEMS)) {
                         player.moveMediaItem(fromIndex, toIndex)
-                        currentIndex = player.currentMediaItemIndex
+                        playback.currentIndex = player.currentMediaItemIndex
                         onMoveQueueItem(fromIndex, toIndex)
                     }
                 },
@@ -590,14 +323,14 @@ fun PlayerScreen(
                             }
                             seekFeedbackEventId += 1
                             player.seekRelative(seekOffsetMs)
-                            positionMs = player.currentPosition.coerceAtLeast(0L)
-                            val activeRange = TrackLoopRangeFactory.create(loopStartMs, loopEndMs, durationMs)
+                            playback.positionMs = player.currentPosition.coerceAtLeast(0L)
+                            val activeRange = TrackLoopRangeFactory.create(playback.loopStartMs, playback.loopEndMs, playback.durationMs)
                             if (
-                                isLooping &&
+                                playback.isLooping &&
                                 activeRange != null &&
-                                TrackLoopRangeFactory.shouldStopLoopAfterUserSeek(activeRange, positionMs)
+                                TrackLoopRangeFactory.shouldStopLoopAfterUserSeek(activeRange, playback.positionMs)
                             ) {
-                                isLooping = false
+                                playback.isLooping = false
                             }
                         },
                     )
@@ -645,10 +378,10 @@ fun PlayerScreen(
                 }
 
                 TrackLoopStatusText(
-                    startMs = loopStartMs,
-                    endMs = loopEndMs,
-                    durationMs = durationMs,
-                    isLooping = isLooping,
+                    startMs = playback.loopStartMs,
+                    endMs = playback.loopEndMs,
+                    durationMs = playback.durationMs,
+                    isLooping = playback.isLooping,
                 )
 
                 Row(
@@ -669,65 +402,13 @@ fun PlayerScreen(
                     }
                     ABLoopButton(
                         state = ABLoopButtonState(
-                            startMs = loopStartMs,
-                            endMs = loopEndMs,
-                            isLooping = isLooping,
+                            startMs = playback.loopStartMs,
+                            endMs = playback.loopEndMs,
+                            isLooping = playback.isLooping,
                         ),
                         enabled = currentTrackId != null,
-                        onClick = {
-                            val state = ABLoopButtonState(
-                                startMs = loopStartMs,
-                                endMs = loopEndMs,
-                                isLooping = isLooping,
-                            )
-                            when (
-                                val action = ABLoopButtonStateMachine.onClick(
-                                    state = state,
-                                    positionMs = positionMs,
-                                    durationMs = durationMs,
-                                )
-                            ) {
-                                is ABLoopButtonAction.SetStart -> {
-                                    loopTrackId = currentTrackId
-                                    loopStartMs = action.startMs
-                                    loopEndMs = null
-                                    isLooping = false
-                                }
-
-                                is ABLoopButtonAction.SetEndAndStartLoop -> {
-                                    val trackId = currentTrackId ?: return@ABLoopButton
-                                    loopTrackId = trackId
-                                    loopStartMs = action.range.startMs
-                                    loopEndMs = action.range.endMs
-                                    onSaveTrackLoop(trackId, action.range.startMs, action.range.endMs)
-                                    player.seekTo(action.range.startMs)
-                                    positionMs = action.range.startMs
-                                    isLooping = true
-                                }
-
-                                is ABLoopButtonAction.StartLoop -> {
-                                    player.seekTo(action.range.startMs)
-                                    positionMs = action.range.startMs
-                                    isLooping = true
-                                }
-
-                                ABLoopButtonAction.StopLoop -> {
-                                    isLooping = false
-                                }
-
-                                ABLoopButtonAction.Clear,
-                                ABLoopButtonAction.None,
-                                -> Unit
-                            }
-                        },
-                        onLongClick = {
-                            if (ABLoopButtonStateMachine.onLongClick() == ABLoopButtonAction.Clear) {
-                                currentTrackId?.let(onDeleteTrackLoop)
-                                loopStartMs = null
-                                loopEndMs = null
-                                isLooping = false
-                            }
-                        },
+                        onClick = { playback.onLoopClick(currentTrackId, player, onSaveTrackLoop) },
+                        onLongClick = { playback.clearLoop(currentTrackId, onDeleteTrackLoop) },
                     )
                     IconButton(
                         onClick = {
@@ -742,8 +423,8 @@ fun PlayerScreen(
                             .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
                     ) {
                         Icon(
-                            imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                            contentDescription = if (isPlaying) {
+                            imageVector = if (playback.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            contentDescription = if (playback.isPlaying) {
                                 stringResource(id = R.string.player_pause)
                             } else {
                                 stringResource(id = R.string.player_play)
@@ -755,11 +436,11 @@ fun PlayerScreen(
                         )
                     }
                     RepeatModeButton(
-                        repeatMode = repeatMode,
+                        repeatMode = playback.repeatMode,
                         onClick = {
-                            val nextRepeatMode = repeatMode.nextRepeatMode()
+                            val nextRepeatMode = playback.repeatMode.nextRepeatMode()
                             player.repeatMode = nextRepeatMode
-                            repeatMode = nextRepeatMode
+                            playback.repeatMode = nextRepeatMode
                         },
                     )
                     IconButton(
@@ -778,22 +459,22 @@ fun PlayerScreen(
             }
 
             FixedSeekPanel(
-                positionMs = positionMs,
-                durationMs = durationMs,
-                loopStartMs = loopStartMs,
-                loopEndMs = loopEndMs,
+                positionMs = playback.positionMs,
+                durationMs = playback.durationMs,
+                loopStartMs = playback.loopStartMs,
+                loopEndMs = playback.loopEndMs,
                 onValueChange = { newValue ->
-                    positionMs = newValue.toLong().coerceIn(0, durationMs)
+                    playback.positionMs = newValue.toLong().coerceIn(0, playback.durationMs)
                 },
                 onValueChangeFinished = {
-                    player.seekTo(positionMs)
-                    val activeRange = TrackLoopRangeFactory.create(loopStartMs, loopEndMs, durationMs)
+                    player.seekTo(playback.positionMs)
+                    val activeRange = TrackLoopRangeFactory.create(playback.loopStartMs, playback.loopEndMs, playback.durationMs)
                     if (
-                        isLooping &&
+                        playback.isLooping &&
                         activeRange != null &&
-                        TrackLoopRangeFactory.shouldStopLoopAfterUserSeek(activeRange, positionMs)
+                        TrackLoopRangeFactory.shouldStopLoopAfterUserSeek(activeRange, playback.positionMs)
                     ) {
-                        isLooping = false
+                        playback.isLooping = false
                     }
                 },
                 modifier = Modifier.align(Alignment.BottomCenter),
@@ -809,541 +490,4 @@ fun PlayerScreen(
             }
         }
     }
-}
-
-@Composable
-private fun FixedSeekPanel(
-    positionMs: Long,
-    durationMs: Long,
-    loopStartMs: Long?,
-    loopEndMs: Long?,
-    onValueChange: (Float) -> Unit,
-    onValueChangeFinished: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(PlayerFixedSeekPanelHeight)
-            .background(MaterialTheme.colorScheme.background),
-    ) {
-        HorizontalDivider()
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(
-                    start = 24.dp,
-                    end = 24.dp,
-                    top = 4.dp,
-                    bottom = 2.dp,
-                ),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            ABLoopSlider(
-                positionMs = positionMs,
-                durationMs = durationMs,
-                startMs = loopStartMs,
-                endMs = loopEndMs,
-                onValueChange = onValueChange,
-                onValueChangeFinished = onValueChangeFinished,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    text = formatDuration(positionMs),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = formatDuration(durationMs),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun PlaybackQueueSheetHandle(
-    modifier: Modifier = Modifier,
-) {
-    val queueLabel = stringResource(id = R.string.player_queue)
-
-    Column(
-        modifier = modifier
-            .clip(MaterialTheme.shapes.small)
-            .semantics {
-                contentDescription = queueLabel
-            }
-            .padding(horizontal = 32.dp, vertical = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .width(48.dp)
-                .height(4.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)),
-        )
-        Text(
-            text = queueLabel,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-        )
-    }
-}
-
-@Composable
-private fun PlaybackQueueSheet(
-    queueItems: List<PlayerQueueItem>,
-    currentIndex: Int,
-    canChangeQueue: Boolean,
-    topPadding: Dp,
-    onQueueItemClick: (Int) -> Unit,
-    onMoveQueueItem: (fromIndex: Int, toIndex: Int) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(top = topPadding, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        PlaybackQueueSheetHandle(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(PlayerQueueSheetPeekHeight),
-        )
-        Text(
-            text = stringResource(id = R.string.player_queue_count, queueItems.size),
-            modifier = Modifier.padding(horizontal = 24.dp),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            itemsIndexed(
-                items = queueItems,
-                key = { _, queueItem -> queueItem.queueItemId },
-            ) { index, queueItem ->
-                PlaybackQueueListItem(
-                    queueItem = queueItem,
-                    index = index,
-                    isCurrent = index == currentIndex,
-                    canChangeQueue = canChangeQueue,
-                    onClick = { onQueueItemClick(index) },
-                    onMoveQueueItem = onMoveQueueItem,
-                    lastIndex = queueItems.lastIndex,
-                )
-                HorizontalDivider()
-            }
-        }
-    }
-}
-
-@Composable
-private fun PlaybackQueueListItem(
-    queueItem: PlayerQueueItem,
-    index: Int,
-    isCurrent: Boolean,
-    canChangeQueue: Boolean,
-    onClick: () -> Unit,
-    onMoveQueueItem: (fromIndex: Int, toIndex: Int) -> Unit,
-    lastIndex: Int,
-    modifier: Modifier = Modifier,
-) {
-    var currentIndex by remember(queueItem.queueItemId) { mutableIntStateOf(index) }
-    var draggingQueueItemId by remember { mutableStateOf<Long?>(null) }
-    var draggingOffset by remember { mutableFloatStateOf(0f) }
-    val latestLastIndex by rememberUpdatedState(lastIndex)
-    val itemHeightPx = with(LocalDensity.current) { 72.dp.toPx() }
-    val track = queueItem.track
-
-    ListItem(
-        modifier = modifier
-            .graphicsLayer {
-                translationY = if (draggingQueueItemId == queueItem.queueItemId) {
-                    draggingOffset
-                } else {
-                    0f
-                }
-            }
-            .clickable(onClick = onClick),
-        colors = ListItemDefaults.colors(
-            containerColor = if (isCurrent) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.surface
-            },
-            headlineColor = if (isCurrent) {
-                MaterialTheme.colorScheme.onPrimaryContainer
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
-            supportingColor = if (isCurrent) {
-                MaterialTheme.colorScheme.onPrimaryContainer
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-        ),
-        leadingContent = {
-            if (canChangeQueue) {
-                Icon(
-                    imageVector = Icons.Filled.DragHandle,
-                    contentDescription = stringResource(id = R.string.player_queue_reorder),
-                    modifier = Modifier.pointerInput(queueItem.queueItemId) {
-                        detectDragGesturesAfterLongPress(
-                            onDragStart = {
-                                draggingQueueItemId = queueItem.queueItemId
-                                draggingOffset = 0f
-                                currentIndex = index
-                            },
-                            onDragEnd = {
-                                draggingQueueItemId = null
-                                draggingOffset = 0f
-                            },
-                            onDragCancel = {
-                                draggingQueueItemId = null
-                                draggingOffset = 0f
-                            },
-                            onDrag = { change, dragAmount ->
-                                change.consume()
-                                draggingOffset += dragAmount.y
-                                while (draggingOffset > itemHeightPx && currentIndex < latestLastIndex) {
-                                    onMoveQueueItem(currentIndex, currentIndex + 1)
-                                    currentIndex += 1
-                                    draggingOffset -= itemHeightPx
-                                }
-                                while (draggingOffset < -itemHeightPx && currentIndex > 0) {
-                                    onMoveQueueItem(currentIndex, currentIndex - 1)
-                                    currentIndex -= 1
-                                    draggingOffset += itemHeightPx
-                                }
-                            },
-                        )
-                    },
-                )
-            }
-        },
-        headlineContent = {
-            SingleLineMarqueeText(
-                text = track.title,
-            )
-        },
-        supportingContent = {
-            SingleLineMarqueeText(
-                text = track.artist,
-            )
-        },
-        trailingContent = {
-            Text(
-                text = if (isCurrent) {
-                    stringResource(id = R.string.player_queue_current)
-                } else {
-                    formatDuration(track.durationMs)
-                },
-                style = MaterialTheme.typography.labelMedium,
-            )
-        },
-    )
-}
-
-@Composable
-private fun RepeatModeButton(
-    repeatMode: Int,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val active = repeatMode != Player.REPEAT_MODE_OFF
-    val contentDescription = when (repeatMode) {
-        Player.REPEAT_MODE_ONE -> stringResource(id = R.string.player_repeat_one)
-        Player.REPEAT_MODE_ALL -> stringResource(id = R.string.player_repeat_all)
-        else -> stringResource(id = R.string.player_repeat_off)
-    }
-    val tint = if (active) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
-
-    IconButton(
-        onClick = onClick,
-        modifier = modifier.semantics {
-            this.contentDescription = contentDescription
-        },
-    ) {
-        Icon(
-            imageVector = if (repeatMode == Player.REPEAT_MODE_ONE) {
-                Icons.Filled.RepeatOne
-            } else {
-                Icons.Filled.Repeat
-            },
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier
-                .width(32.dp)
-                .height(32.dp),
-        )
-    }
-}
-
-@Composable
-private fun ABLoopSlider(
-    positionMs: Long,
-    durationMs: Long,
-    startMs: Long?,
-    endMs: Long?,
-    onValueChange: (Float) -> Unit,
-    onValueChangeFinished: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val startMarkerColor = MaterialTheme.colorScheme.primary
-    val endMarkerColor = MaterialTheme.colorScheme.tertiary
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(48.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Slider(
-            value = positionMs.coerceAtLeast(0L).toFloat(),
-            onValueChange = onValueChange,
-            onValueChangeFinished = onValueChangeFinished,
-            valueRange = 0f..durationMs.coerceAtLeast(1L).toFloat(),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            drawABLoopMarker(
-                label = "A",
-                positionMs = startMs,
-                durationMs = durationMs,
-                color = startMarkerColor,
-            )
-            drawABLoopMarker(
-                label = "B",
-                positionMs = endMs,
-                durationMs = durationMs,
-                color = endMarkerColor,
-            )
-        }
-    }
-}
-
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawABLoopMarker(
-    label: String,
-    positionMs: Long?,
-    durationMs: Long,
-    color: Color,
-) {
-    if (positionMs == null || durationMs <= 0L) return
-    val fraction = positionMs.coerceIn(0L, durationMs).toFloat() / durationMs.toFloat()
-    val x = size.width * fraction
-    val markerTop = size.height * 0.18f
-    val markerBottom = size.height * 0.82f
-    drawLine(
-        color = color,
-        start = Offset(x = x, y = markerTop),
-        end = Offset(x = x, y = markerBottom),
-        strokeWidth = 3.dp.toPx(),
-        cap = StrokeCap.Round,
-    )
-
-    val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textAlign = Paint.Align.CENTER
-        textSize = 11.dp.toPx()
-        this.color = color.toArgb()
-        typeface = android.graphics.Typeface.DEFAULT_BOLD
-    }
-    drawContext.canvas.nativeCanvas.drawText(
-        label,
-        x.coerceIn(10.dp.toPx(), size.width - 10.dp.toPx()),
-        12.dp.toPx(),
-        labelPaint,
-    )
-}
-
-@Composable
-private fun TrackLoopStatusText(
-    startMs: Long?,
-    endMs: Long?,
-    durationMs: Long,
-    isLooping: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    val loopRange = TrackLoopRangeFactory.create(startMs, endMs, durationMs)
-    val text = when {
-        isLooping && loopRange != null -> stringResource(
-            id = R.string.player_loop_active_range,
-            formatDuration(loopRange.startMs),
-            formatDuration(loopRange.endMs),
-        )
-
-        loopRange != null -> stringResource(
-            id = R.string.player_loop_range,
-            formatDuration(loopRange.startMs),
-            formatDuration(loopRange.endMs),
-        )
-
-        startMs != null -> stringResource(id = R.string.player_loop_start_point, formatDuration(startMs))
-        else -> stringResource(id = R.string.player_loop_not_set)
-    }
-    Text(
-        text = text,
-        modifier = modifier.fillMaxWidth(),
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-    )
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun ABLoopButton(
-    state: ABLoopButtonState,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val loopRange = TrackLoopRangeFactory.create(state.startMs, state.endMs, Long.MAX_VALUE)
-    val clickLabel = when {
-        state.isLooping -> stringResource(id = R.string.player_loop_stop)
-        loopRange != null -> stringResource(id = R.string.player_loop_start)
-        state.startMs != null -> stringResource(id = R.string.player_loop_set_end_and_start)
-        else -> stringResource(id = R.string.player_loop_set_start)
-    }
-    val containerColor = if (state.isLooping) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
-    }
-    val contentColor = if (state.isLooping) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
-
-    Box(
-        modifier = modifier
-            .size(56.dp)
-            .clip(MaterialTheme.shapes.extraLarge)
-            .background(containerColor)
-            .semantics { contentDescription = clickLabel }
-            .combinedClickable(
-                enabled = enabled,
-                role = Role.Button,
-                onClickLabel = clickLabel,
-                onLongClickLabel = stringResource(id = R.string.player_loop_clear),
-                onLongClick = onLongClick,
-                onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = stringResource(id = R.string.player_loop_button_label),
-            color = contentColor,
-            style = MaterialTheme.typography.labelLarge,
-        )
-    }
-}
-
-@Composable
-private fun SeekFeedbackBadge(
-    feedback: SeekFeedback,
-    modifier: Modifier = Modifier,
-) {
-    Text(
-        text = feedback.label,
-        modifier = modifier
-            .background(
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f),
-                shape = MaterialTheme.shapes.large,
-            )
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        color = MaterialTheme.colorScheme.onPrimaryContainer,
-        style = MaterialTheme.typography.titleLarge,
-    )
-}
-
-@Composable
-private fun AlbumArt(
-    albumArtUri: Uri?,
-    contentDescription: String?,
-    modifier: Modifier = Modifier,
-) {
-    AsyncImage(
-        model = albumArtUri,
-        contentDescription = contentDescription,
-        modifier = modifier
-            .aspectRatio(4f / 3f)
-            .fillMaxWidth(),
-        contentScale = ContentScale.Fit,
-        placeholder = rememberVectorPainter(Icons.Filled.Album),
-        error = rememberVectorPainter(Icons.Filled.Album),
-        fallback = rememberVectorPainter(Icons.Filled.Album),
-    )
-}
-
-private fun formatDuration(durationMs: Long): String {
-    val totalSeconds = TimeUnit.MILLISECONDS.toSeconds(durationMs)
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return "%d:%02d".format(minutes, seconds)
-}
-
-private fun Player.seekRelative(offsetMs: Long) {
-    val currentPositionMs = currentPosition.coerceAtLeast(0L)
-    val targetPositionMs = currentPositionMs + offsetMs
-    val durationMs = duration
-    val clampedPositionMs = if (durationMs > 0) {
-        targetPositionMs.coerceIn(0L, durationMs)
-    } else {
-        targetPositionMs.coerceAtLeast(0L)
-    }
-    seekTo(clampedPositionMs)
-}
-
-private fun Int.nextRepeatMode(): Int = when (this) {
-    Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ONE
-    Player.REPEAT_MODE_ONE -> Player.REPEAT_MODE_ALL
-    else -> Player.REPEAT_MODE_OFF
-}
-
-private const val DOUBLE_TAP_SEEK_INTERVAL_MS = 10_000L
-private const val SEEK_FEEDBACK_VISIBLE_MS = 600L
-private val PlayerFixedSeekPanelHeight = 72.dp
-private val PlayerQueueSheetPeekHeight = 72.dp
-
-private enum class SeekFeedback(
-    val label: String,
-    val alignment: Alignment,
-) {
-    Backward("-10秒", Alignment.CenterStart),
-    Forward("+10秒", Alignment.CenterEnd),
-}
-
-private val PlaybackQueue.title: String
-    get() = when (this) {
-        is PlaybackQueue.Folder -> directoryTitle
-        is PlaybackQueue.Playlist -> playlistName
-    }
-
-@Composable
-private fun PlaybackQueue.artworkLabel(): String? {
-    return when (this) {
-        is PlaybackQueue.Playlist -> stringResource(id = R.string.player_artwork_scope_playlist)
-        is PlaybackQueue.Folder -> stringResource(id = R.string.player_artwork_scope_folder)
-    }
-}
-
-private sealed interface ArtworkPickerTarget {
-    data class Track(val trackId: Long) : ArtworkPickerTarget
-    data object Queue : ArtworkPickerTarget
 }

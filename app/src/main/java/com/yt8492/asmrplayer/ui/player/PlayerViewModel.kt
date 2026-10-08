@@ -1,48 +1,41 @@
 package com.yt8492.asmrplayer.ui.player
 
-import android.content.ContentResolver
-import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.yt8492.asmrplayer.data.local.AppDatabase
-import com.yt8492.asmrplayer.data.model.PlaylistTrack
-import com.yt8492.asmrplayer.data.model.Track
+import com.yt8492.asmrplayer.core.coroutines.runSuspendCatching
+import com.yt8492.asmrplayer.data.model.PlaylistTrackOrder
+import com.yt8492.asmrplayer.data.repository.ArtworkRepository
 import com.yt8492.asmrplayer.data.repository.PlaylistRepository
-import com.yt8492.asmrplayer.data.repository.PlaylistRepositoryImpl
-import com.yt8492.asmrplayer.data.repository.PlaylistTrackOrder
-import com.yt8492.asmrplayer.data.repository.QueueArtworkRepository
-import com.yt8492.asmrplayer.data.repository.QueueArtworkRepositoryImpl
-import com.yt8492.asmrplayer.data.repository.TrackArtworkRepository
-import com.yt8492.asmrplayer.data.repository.TrackArtworkRepositoryImpl
-import com.yt8492.asmrplayer.data.repository.TrackRepository
-import com.yt8492.asmrplayer.data.repository.TrackRepositoryImpl
 import com.yt8492.asmrplayer.data.repository.TrackLoopRepository
-import com.yt8492.asmrplayer.data.repository.TrackLoopRepositoryImpl
+import com.yt8492.asmrplayer.data.repository.TrackRepository
+import com.yt8492.asmrplayer.domain.ResolvePlaylistTracks
+import com.yt8492.asmrplayer.playback.model.PlaybackQueue
+import com.yt8492.asmrplayer.playback.model.artworkTarget
+import com.yt8492.asmrplayer.playback.model.logType
+import com.yt8492.asmrplayer.playback.model.resolvePlaybackStartIndex
+import com.yt8492.asmrplayer.playback.model.resolvePlaylistPlaybackStartIndex
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
 class PlayerViewModel(
-    context: Context,
     private val queue: PlaybackQueue,
     private val startTrackId: Long,
     private val startPlaylistTrackId: Long?,
     private val startIndexHint: Int?,
     private val trackRepository: TrackRepository,
+    private val resolvePlaylistTracks: ResolvePlaylistTracks,
     private val playlistRepository: PlaylistRepository,
     private val trackLoopRepository: TrackLoopRepository,
-    private val trackArtworkRepository: TrackArtworkRepository,
-    private val queueArtworkRepository: QueueArtworkRepository,
+    private val artworkRepository: ArtworkRepository,
 ) : ViewModel() {
-    private val contentResolver: ContentResolver = context.applicationContext.contentResolver
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
     private var currentTrackLoopJob: Job? = null
@@ -58,7 +51,7 @@ class PlayerViewModel(
     private fun loadTracks() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-            runCatching {
+            runSuspendCatching {
                 when (val currentQueue = queue) {
                     is PlaybackQueue.Folder -> {
                         val tracks = trackRepository.getTracksInDirectory(currentQueue.directoryPath)
@@ -76,12 +69,8 @@ class PlayerViewModel(
 
                     is PlaybackQueue.Playlist -> {
                         val playlistTracks = playlistRepository.getPlaylistTracks(currentQueue.playlistId)
-                        val tracks = trackRepository.getTracks(playlistTracks.map { it.trackId })
-                        val tracksById = tracks.associateBy { it.id }
-                        val queueItems = playlistTracks.mapNotNull { playlistTrack ->
-                            tracksById[playlistTrack.trackId]?.let { track ->
-                                PlayerQueueItem(queueItemId = playlistTrack.id, track = track)
-                            }
+                        val queueItems = resolvePlaylistTracks(playlistTracks).map {
+                            PlayerQueueItem(queueItemId = it.playlistTrackId, track = it.track)
                         }
                         LoadedTracks(
                             queueItems = queueItems,
@@ -100,7 +89,6 @@ class PlayerViewModel(
                     it.copy(
                         isLoading = false,
                         queueItems = loadedTracks.queueItems,
-                        tracks = loadedTracks.queueItems.map { queueItem -> queueItem.track },
                         startIndex = loadedTracks.startIndex,
                     )
                 }
@@ -131,7 +119,6 @@ class PlayerViewModel(
                 val movedQueueItems = movedQueueItemIds.mapNotNull { queueItemsById[it] }
                 currentState.copy(
                     queueItems = movedQueueItems,
-                    tracks = movedQueueItems.map { queueItem -> queueItem.track },
                 )
             }
         }
@@ -148,13 +135,19 @@ class PlayerViewModel(
             return
         }
         currentTrackLoopJob = viewModelScope.launch {
-            trackLoopRepository.observeTrackLoop(trackId).collectLatest { trackLoop ->
+            trackLoopRepository.observeTrackLoop(trackId) .catch { error ->
+                Timber.e(error, "ABリピート範囲の取得に失敗しました")
+                _uiState.update { it.copy(errorMessage = "ABリピート範囲の取得に失敗しました") }
+            }.collectLatest { trackLoop ->
                 _uiState.update { it.copy(currentTrackLoop = trackLoop) }
             }
         }
         currentTrackArtworkJob = viewModelScope.launch {
-            trackArtworkRepository.observeTrackArtwork(trackId).collectLatest { trackArtwork ->
-                _uiState.update { it.copy(currentTrackArtworkUri = trackArtwork?.imageUri) }
+            artworkRepository.observeTrackArtwork(trackId) .catch { error ->
+                Timber.e(error, "トラック画像の取得に失敗しました")
+                _uiState.update { it.copy(errorMessage = "トラック画像の取得に失敗しました") }
+            }.collectLatest { trackArtwork ->
+                _uiState.update { it.copy(currentTrackArtworkUri = trackArtwork) }
             }
         }
     }
@@ -162,7 +155,7 @@ class PlayerViewModel(
     fun saveTrackLoop(trackId: Long, startMs: Long, endMs: Long) {
         if (startMs >= endMs) return
         viewModelScope.launch {
-            runCatching {
+            runSuspendCatching {
                 trackLoopRepository.saveTrackLoop(trackId, startMs, endMs)
             }.onFailure { throwable ->
                 Timber.e(throwable, "ABリピート範囲の保存に失敗しました trackId=%d", trackId)
@@ -172,7 +165,7 @@ class PlayerViewModel(
 
     fun deleteTrackLoop(trackId: Long) {
         viewModelScope.launch {
-            runCatching {
+            runSuspendCatching {
                 trackLoopRepository.deleteTrackLoop(trackId)
             }.onFailure { throwable ->
                 Timber.e(throwable, "ABリピート範囲の削除に失敗しました trackId=%d", trackId)
@@ -180,224 +173,53 @@ class PlayerViewModel(
         }
     }
 
-    fun saveTrackArtwork(trackId: Long, imageUri: Uri) {
+    fun saveTrackArtwork(trackId: Long, imageUri: Uri) = updateArtwork("トラック画像の保存に失敗しました") {
+        artworkRepository.saveTrackArtwork(trackId, imageUri)
+        if (currentTrackId == trackId) _uiState.update { it.copy(currentTrackArtworkUri = imageUri) }
+    }
+
+    fun deleteTrackArtwork(trackId: Long) = updateArtwork("トラック画像の削除に失敗しました") {
+        artworkRepository.deleteTrackArtwork(trackId)
+        if (currentTrackId == trackId) _uiState.update { it.copy(currentTrackArtworkUri = null) }
+    }
+
+    fun saveQueueArtwork(imageUri: Uri) = updateArtwork("再生キュー画像の保存に失敗しました") {
+        artworkRepository.saveQueueArtwork(queue.artworkTarget(), imageUri)
+        _uiState.update { it.copy(queueArtworkUri = imageUri) }
+    }
+
+    fun deleteQueueArtwork() = updateArtwork("再生キュー画像の削除に失敗しました") {
+        artworkRepository.deleteQueueArtwork(queue.artworkTarget())
+        _uiState.update { it.copy(queueArtworkUri = null) }
+    }
+
+    private fun updateArtwork(message: String, action: suspend () -> Unit) {
         viewModelScope.launch {
-            runCatching {
-                val previousUri = trackArtworkRepository.getTrackArtwork(trackId)?.imageUri
-                trackArtworkRepository.saveTrackArtwork(trackId, imageUri)
-                if (currentTrackId == trackId) {
-                    _uiState.update { it.copy(currentTrackArtworkUri = imageUri) }
-                }
-                if (previousUri != null && previousUri != imageUri) {
-                    releaseArtworkPermissionIfUnused(previousUri)
-                }
-            }.onFailure { throwable ->
-                Timber.e(throwable, "トラック画像の保存に失敗しました trackId=%d uriScheme=%s", trackId, imageUri.scheme)
+            runSuspendCatching { action() }.onFailure { error ->
+                Timber.e(error, message)
+                _uiState.update { it.copy(errorMessage = message) }
             }
         }
     }
 
-    fun deleteTrackArtwork(trackId: Long) {
-        viewModelScope.launch {
-            runCatching {
-                val previousUri = trackArtworkRepository.getTrackArtwork(trackId)?.imageUri
-                trackArtworkRepository.deleteTrackArtwork(trackId)
-                if (currentTrackId == trackId) {
-                    _uiState.update { it.copy(currentTrackArtworkUri = null) }
-                }
-                previousUri?.let { releaseArtworkPermissionIfUnused(it) }
-            }.onFailure { throwable ->
-                Timber.e(throwable, "トラック画像の削除に失敗しました trackId=%d", trackId)
-            }
-        }
-    }
-
-    fun saveQueueArtwork(imageUri: Uri) {
-        val target = queue.artworkTarget() ?: return
-        viewModelScope.launch {
-            runCatching {
-                val previousUri = queueArtworkRepository.getQueueArtwork(target.queueType, target.queueKey)?.imageUri
-                queueArtworkRepository.saveQueueArtwork(target.queueType, target.queueKey, imageUri)
-                _uiState.update { it.copy(queueArtworkUri = imageUri) }
-                if (previousUri != null && previousUri != imageUri) {
-                    releaseArtworkPermissionIfUnused(previousUri)
-                }
-            }.onFailure { throwable ->
-                Timber.e(
-                    throwable,
-                    "再生キュー画像の保存に失敗しました queueType=%s uriScheme=%s",
-                    target.queueType,
-                    imageUri.scheme,
-                )
-            }
-        }
-    }
-
-    fun deleteQueueArtwork() {
-        val target = queue.artworkTarget() ?: return
-        viewModelScope.launch {
-            runCatching {
-                val previousUri = queueArtworkRepository.getQueueArtwork(target.queueType, target.queueKey)?.imageUri
-                queueArtworkRepository.deleteQueueArtwork(target.queueType, target.queueKey)
-                _uiState.update { it.copy(queueArtworkUri = null) }
-                previousUri?.let { releaseArtworkPermissionIfUnused(it) }
-            }.onFailure { throwable ->
-                Timber.e(
-                    throwable,
-                    "再生キュー画像の削除に失敗しました queueType=%s",
-                    target.queueType,
-                )
-            }
-        }
-    }
+    fun consumeError() { _uiState.update { it.copy(errorMessage = null) } }
 
     private fun observeQueueArtwork() {
         val target = queue.artworkTarget()
-        if (target == null) {
-            _uiState.update { it.copy(queueArtworkUri = null) }
-            return
-        }
         queueArtworkJob?.cancel()
         queueArtworkJob = viewModelScope.launch {
-            queueArtworkRepository.observeQueueArtwork(target.queueType, target.queueKey).collectLatest { queueArtwork ->
-                _uiState.update { it.copy(queueArtworkUri = queueArtwork?.imageUri) }
+            artworkRepository.observeQueueArtwork(target) .catch { error ->
+                Timber.e(error, "再生キュー画像の取得に失敗しました")
+                _uiState.update { it.copy(errorMessage = "再生キュー画像の取得に失敗しました") }
+            }.collectLatest { queueArtwork ->
+                _uiState.update { it.copy(queueArtworkUri = queueArtwork) }
             }
         }
     }
 
-    private suspend fun releaseArtworkPermissionIfUnused(imageUri: Uri) {
-        val isUsed = trackArtworkRepository.isImageUriUsed(imageUri) ||
-            queueArtworkRepository.isImageUriUsed(imageUri)
-        if (isUsed) return
-        runCatching {
-            contentResolver.releasePersistableUriPermission(
-                imageUri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION,
-            )
-        }.onFailure { throwable ->
-            Timber.w(throwable, "未使用画像 URI 権限の解放に失敗しました uriScheme=%s", imageUri.scheme)
-        }
-    }
-
-    private fun PlaybackQueue.artworkTarget(): QueueArtworkTarget? {
-        return when (this) {
-            is PlaybackQueue.Playlist -> QueueArtworkTarget(QUEUE_TYPE_PLAYLIST, playlistId.toString())
-            is PlaybackQueue.Folder -> QueueArtworkTarget(QUEUE_TYPE_FOLDER, directoryPath)
-        }
-    }
-
-    companion object {
-        fun provideFactory(
-            context: Context,
-            queue: PlaybackQueue,
-            startTrackId: Long,
-            startPlaylistTrackId: Long? = null,
-            startIndexHint: Int? = null,
-        ): ViewModelProvider.Factory {
-            val applicationContext = context.applicationContext
-            return object : ViewModelProvider.Factory {
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    val database = AppDatabase.getInstance(applicationContext)
-                    val trackRepository: TrackRepository = TrackRepositoryImpl(applicationContext)
-                    val playlistRepository: PlaylistRepository = PlaylistRepositoryImpl(
-                        database.playlistDao(),
-                    )
-                    val trackLoopRepository: TrackLoopRepository = TrackLoopRepositoryImpl(
-                        database.trackLoopDao(),
-                    )
-                    val trackArtworkRepository: TrackArtworkRepository = TrackArtworkRepositoryImpl(
-                        database.trackArtworkDao(),
-                    )
-                    val queueArtworkRepository: QueueArtworkRepository = QueueArtworkRepositoryImpl(
-                        database.queueArtworkDao(),
-                    )
-                    @Suppress("UNCHECKED_CAST")
-                    return PlayerViewModel(
-                        context = applicationContext,
-                        queue = queue,
-                        startTrackId = startTrackId,
-                        startPlaylistTrackId = startPlaylistTrackId,
-                        startIndexHint = startIndexHint,
-                        trackRepository = trackRepository,
-                        playlistRepository = playlistRepository,
-                        trackLoopRepository = trackLoopRepository,
-                        trackArtworkRepository = trackArtworkRepository,
-                        queueArtworkRepository = queueArtworkRepository,
-                    ) as T
-                }
-            }
-        }
-
-        private const val QUEUE_TYPE_PLAYLIST = "playlist"
-        private const val QUEUE_TYPE_FOLDER = "folder"
-    }
 }
-
-private data class QueueArtworkTarget(
-    val queueType: String,
-    val queueKey: String,
-)
 
 private data class LoadedTracks(
     val queueItems: List<PlayerQueueItem>,
     val startIndex: Int,
 )
-
-internal fun resolvePlaybackStartIndex(
-    tracks: List<Track>,
-    startTrackId: Long,
-    startIndexHint: Int?,
-): Int {
-    return resolvePlaybackStartIndexByTrackIds(
-        trackIds = tracks.map { it.id },
-        startTrackId = startTrackId,
-        startIndexHint = startIndexHint,
-    )
-}
-
-internal fun resolvePlaybackStartIndexByTrackIds(
-    trackIds: List<Long>,
-    startTrackId: Long,
-    startIndexHint: Int?,
-): Int {
-    return startIndexHint
-        ?.takeIf { it in trackIds.indices && trackIds[it] == startTrackId }
-        ?: trackIds.indexOfFirst { it == startTrackId }.takeIf { it >= 0 }
-        ?: 0
-}
-
-internal fun resolvePlaylistPlaybackStartIndex(
-    tracks: List<Track>,
-    playlistTracks: List<PlaylistTrack>,
-    startTrackId: Long,
-    startPlaylistTrackId: Long?,
-    startIndexHint: Int?,
-): Int {
-    return resolvePlaylistPlaybackStartIndexByTrackIds(
-        trackIds = tracks.map { it.id },
-        playlistTracks = playlistTracks,
-        startTrackId = startTrackId,
-        startPlaylistTrackId = startPlaylistTrackId,
-        startIndexHint = startIndexHint,
-    )
-}
-
-internal fun resolvePlaylistPlaybackStartIndexByTrackIds(
-    trackIds: List<Long>,
-    playlistTracks: List<PlaylistTrack>,
-    startTrackId: Long,
-    startPlaylistTrackId: Long?,
-    startIndexHint: Int?,
-): Int {
-    val availableTrackIds = trackIds.toSet()
-    val availablePlaylistTracks = playlistTracks.filter { it.trackId in availableTrackIds }
-    val playlistTrackIndex = startPlaylistTrackId
-        ?.let { targetId -> availablePlaylistTracks.indexOfFirst { it.id == targetId } }
-        ?.takeIf { it >= 0 }
-
-    return playlistTrackIndex ?: resolvePlaybackStartIndexByTrackIds(
-        trackIds = trackIds,
-        startTrackId = startTrackId,
-        startIndexHint = startIndexHint,
-    )
-}

@@ -4,10 +4,8 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -50,11 +48,16 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yt8492.asmrplayer.R
+import com.yt8492.asmrplayer.data.model.PlaylistTrackItem
 import com.yt8492.asmrplayer.data.model.Track
+import com.yt8492.asmrplayer.di.appContainer
+import com.yt8492.asmrplayer.di.playlistDetailFactory
+import com.yt8492.asmrplayer.ui.common.PlaylistNameDialog
 import com.yt8492.asmrplayer.ui.common.SingleLineMarqueeText
 import com.yt8492.asmrplayer.ui.common.TrackInfoDialog
+import com.yt8492.asmrplayer.ui.common.formatDuration
+import com.yt8492.asmrplayer.ui.common.moveDraggedItem
 import com.yt8492.asmrplayer.ui.common.rememberCurrentPlaybackTrackId
-import java.util.concurrent.TimeUnit
 
 @Composable
 fun PlaylistDetailRoute(
@@ -64,7 +67,7 @@ fun PlaylistDetailRoute(
     modifier: Modifier = Modifier,
     bottomBar: @Composable () -> Unit = {},
     viewModel: PlaylistDetailViewModel = viewModel(
-        factory = PlaylistDetailViewModel.provideFactory(LocalContext.current, playlistId),
+        factory = LocalContext.current.appContainer().playlistDetailFactory(playlistId),
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -272,17 +275,10 @@ private fun ReorderableTrackList(
                                     },
                                     onDrag = { change, dragAmount ->
                                         change.consume()
-                                        draggingOffset += dragAmount.y
-                                        while (draggingOffset > itemHeightPx && currentIndex < latestLastIndex) {
-                                            onMoveTrack(currentIndex, currentIndex + 1)
-                                            currentIndex += 1
-                                            draggingOffset -= itemHeightPx
-                                        }
-                                        while (draggingOffset < -itemHeightPx && currentIndex > 0) {
-                                            onMoveTrack(currentIndex, currentIndex - 1)
-                                            currentIndex -= 1
-                                            draggingOffset += itemHeightPx
-                                        }
+                                        val movement = moveDraggedItem(currentIndex, draggingOffset + dragAmount.y,
+                                    itemHeightPx, latestLastIndex, onMoveTrack)
+                                currentIndex = movement.index
+                                draggingOffset = movement.offset
                                     },
                                 )
                             },
@@ -330,11 +326,4 @@ private fun ReorderableTrackList(
             HorizontalDivider()
         }
     }
-}
-
-private fun formatDuration(durationMs: Long): String {
-    val totalSeconds = TimeUnit.MILLISECONDS.toSeconds(durationMs)
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return "%d:%02d".format(minutes, seconds)
 }

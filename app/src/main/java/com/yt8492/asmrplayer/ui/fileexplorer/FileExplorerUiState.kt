@@ -1,7 +1,7 @@
 package com.yt8492.asmrplayer.ui.fileexplorer
 
+import com.yt8492.asmrplayer.data.model.BrowsableDirectory
 import com.yt8492.asmrplayer.data.model.DocumentFile
-import com.yt8492.asmrplayer.data.model.AudioDirectory
 import com.yt8492.asmrplayer.data.model.ImageFile
 import com.yt8492.asmrplayer.data.model.Playlist
 import com.yt8492.asmrplayer.data.model.Track
@@ -12,7 +12,7 @@ data class FileExplorerUiState(
     val currentPath: String = "",
     val directoryTitle: String? = null,
     val parentPath: String? = null,
-    val directories: List<AudioDirectory> = emptyList(),
+    val directories: List<BrowsableDirectory> = emptyList(),
     val tracks: List<Track> = emptyList(),
     val documents: List<DocumentFile> = emptyList(),
     val images: List<ImageFile> = emptyList(),

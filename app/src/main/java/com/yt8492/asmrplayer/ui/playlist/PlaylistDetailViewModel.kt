@@ -1,18 +1,16 @@
 package com.yt8492.asmrplayer.ui.playlist
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.yt8492.asmrplayer.data.local.AppDatabase
+import com.yt8492.asmrplayer.core.coroutines.runSuspendCatching
+import com.yt8492.asmrplayer.data.model.PlaylistTrackOrder
 import com.yt8492.asmrplayer.data.repository.PlaylistRepository
-import com.yt8492.asmrplayer.data.repository.PlaylistRepositoryImpl
-import com.yt8492.asmrplayer.data.repository.PlaylistTrackOrder
-import com.yt8492.asmrplayer.data.repository.TrackRepository
-import com.yt8492.asmrplayer.data.repository.TrackRepositoryImpl
+import com.yt8492.asmrplayer.domain.ResolvePlaylistTracks
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -20,28 +18,24 @@ import timber.log.Timber
 class PlaylistDetailViewModel(
     private val playlistId: Long,
     private val playlistRepository: PlaylistRepository,
-    private val trackRepository: TrackRepository,
+    private val resolvePlaylistTracks: ResolvePlaylistTracks,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PlaylistDetailUiState())
     val uiState: StateFlow<PlaylistDetailUiState> = _uiState.asStateFlow()
 
+    private var loadJob: Job? = null
+
     fun loadPlaylistTracks() {
+        if (loadJob?.isActive == true) return
         if (!_uiState.value.isLoading && _uiState.value.playlist != null) return
-        viewModelScope.launch {
-            playlistRepository.observePlaylistTracks(playlistId).collect { playlistTracks ->
-                runCatching {
+        loadJob = viewModelScope.launch {
+            playlistRepository.observePlaylistTracks(playlistId) .catch { error ->
+                Timber.e(error, "プレイリストの取得に失敗しました")
+                _uiState.update { it.copy(isLoading = false, errorMessage = "プレイリストの取得に失敗しました") }
+            }.collect { playlistTracks ->
+                runSuspendCatching {
                     val playlist = playlistRepository.getPlaylist(playlistId)
-                    val trackIds = playlistTracks.map { it.trackId }
-                    val tracks = trackRepository.getTracks(trackIds)
-                    val tracksById = tracks.associateBy { it.id }
-                    val playlistTrackItems = playlistTracks.mapNotNull { playlistTrack ->
-                        tracksById[playlistTrack.trackId]?.let { track ->
-                            PlaylistTrackItem(
-                                playlistTrackId = playlistTrack.id,
-                                track = track,
-                            )
-                        }
-                    }
+                    val playlistTrackItems = resolvePlaylistTracks(playlistTracks)
                     playlist to playlistTrackItems
                 }.onSuccess { (playlist, playlistTrackItems) ->
                     _uiState.update {
@@ -69,7 +63,7 @@ class PlaylistDetailViewModel(
         val currentTracks = _uiState.value.playlistTracks.filterNot { it.playlistTrackId == playlistTrackId }
         _uiState.update { it.copy(playlistTracks = currentTracks) }
         viewModelScope.launch {
-            runCatching {
+            runSuspendCatching {
                 playlistRepository.removeTrack(playlistId, playlistTrackId)
             }.onFailure { throwable ->
                 Timber.e(
@@ -89,7 +83,7 @@ class PlaylistDetailViewModel(
         val trimmedName = name.trim()
         if (trimmedName.isEmpty()) return
         viewModelScope.launch {
-            runCatching {
+            runSuspendCatching {
                 playlistRepository.renamePlaylist(playlistId, trimmedName)
             }.onFailure { throwable ->
                 Timber.e(throwable, "プレイリスト名の変更に失敗しました playlistId=%d", playlistId)
@@ -115,7 +109,7 @@ class PlaylistDetailViewModel(
     fun saveCurrentOrder() {
         val playlistTrackIds = _uiState.value.playlistTracks.map { it.playlistTrackId }
         viewModelScope.launch {
-            runCatching {
+            runSuspendCatching {
                 playlistRepository.replaceTrackOrder(playlistId, playlistTrackIds)
             }.onFailure { throwable ->
                 Timber.e(throwable, "プレイリスト曲順の保存に失敗しました playlistId=%d", playlistId)
@@ -134,18 +128,4 @@ class PlaylistDetailViewModel(
         _uiState.update { it.copy(errorMessage = null) }
     }
 
-    companion object {
-        fun provideFactory(context: Context, playlistId: Long): ViewModelProvider.Factory {
-            val applicationContext = context.applicationContext
-            return object : ViewModelProvider.Factory {
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    val database = AppDatabase.getInstance(applicationContext)
-                    val playlistRepository = PlaylistRepositoryImpl(database.playlistDao())
-                    val trackRepository = TrackRepositoryImpl(applicationContext)
-                    @Suppress("UNCHECKED_CAST")
-                    return PlaylistDetailViewModel(playlistId, playlistRepository, trackRepository) as T
-                }
-            }
-        }
-    }
 }

@@ -1,14 +1,21 @@
 name: Build Debug APK
 
 on:
+  pull_request:
+    branches:
+      - main
+      - master
   push:
     branches:
       - main
       - master
 
+permissions:
+  contents: read
+
 jobs:
   build-debug-apk:
-    name: Build debug APK
+    name: Validate debug build
     runs-on: ubuntu-latest
 
     steps:
@@ -33,7 +40,13 @@ jobs:
       - name: Install Android SDK packages
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
+      # PRでは実サービスの設定を渡さず、検証専用のダミー設定を使用する。
+      - name: Use test Firebase configuration
+        if: github.event_name == 'pull_request'
+        run: cp .github/fixtures/google-services-test.json app/google-services.json
+
       - name: Restore Firebase configuration
+        if: github.event_name != 'pull_request'
         env:
           GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
         run: |
@@ -43,10 +56,22 @@ jobs:
           fi
           printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > app/google-services.json
 
-      - name: Build debug APK
-        run: ./gradlew :app:assembleDebug
+      - name: Validate and build
+        run: ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest
+
+      - name: Upload validation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-validation-reports
+          path: |
+            app/build/reports/tests/testDebugUnitTest
+            app/build/reports/lint-results-debug.*
+            app/build/test-results/testDebugUnitTest
+          if-no-files-found: ignore
 
       - name: Upload debug APK
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: asmrplayer-debug-apk

@@ -14,11 +14,11 @@ import androidx.lifecycle.ViewModelStore
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.yt8492.asmrplayer.data.local.AppDatabase
+import com.yt8492.asmrplayer.data.library.documentTrackId
+import com.yt8492.asmrplayer.data.local.database.AppDatabase
 import com.yt8492.asmrplayer.data.model.Track
-import com.yt8492.asmrplayer.data.repository.PlaylistRepositoryImpl
 import com.yt8492.asmrplayer.data.repository.TrackRepository
-import com.yt8492.asmrplayer.data.repository.documentTrackId
+import com.yt8492.asmrplayer.data.repository.impl.PlaylistRepositoryImpl
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -57,7 +57,7 @@ class PlaylistDetailRouteTest {
 
                 override suspend fun getTracksInDirectory(directoryPath: String): List<Track> = emptyList()
             }
-            val viewModel = PlaylistDetailViewModel(playlistId, playlistRepository, trackRepository)
+            val viewModel = PlaylistDetailViewModel(playlistId, playlistRepository, com.yt8492.asmrplayer.domain.ResolvePlaylistTracks(trackRepository))
             store.put("playlist", viewModel)
             var selectedTracks = emptyList<Track>()
             var selectedIndex: Int? = null

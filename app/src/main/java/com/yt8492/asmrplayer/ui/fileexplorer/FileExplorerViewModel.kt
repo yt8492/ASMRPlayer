@@ -1,24 +1,18 @@
 package com.yt8492.asmrplayer.ui.fileexplorer
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.yt8492.asmrplayer.data.local.AppDatabase
+import com.yt8492.asmrplayer.core.coroutines.runSuspendCatching
 import com.yt8492.asmrplayer.data.repository.AddTrackResult
 import com.yt8492.asmrplayer.data.repository.FileExplorerRepository
-import com.yt8492.asmrplayer.data.repository.FileExplorerRepositoryImpl
 import com.yt8492.asmrplayer.data.repository.PlaylistRepository
-import com.yt8492.asmrplayer.data.repository.PlaylistRepositoryImpl
 import com.yt8492.asmrplayer.data.repository.TrackRepository
-import com.yt8492.asmrplayer.data.repository.TrackRepositoryImpl
-import com.yt8492.asmrplayer.data.repository.normalizeDirectoryPath
-import kotlinx.coroutines.Job
-import com.yt8492.asmrplayer.data.repository.DocumentPath
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -36,7 +30,10 @@ class FileExplorerViewModel(
 
     init {
         viewModelScope.launch {
-            playlistRepository.observePlaylists().collect { playlists ->
+            playlistRepository.observePlaylists() .catch { error ->
+                Timber.e(error, "プレイリストの取得に失敗しました")
+                _uiState.update { it.copy(errorMessage = "プレイリストの取得に失敗しました") }
+            }.collect { playlists ->
                 _uiState.update { it.copy(playlists = playlists) }
             }
         }
@@ -45,7 +42,7 @@ class FileExplorerViewModel(
     fun loadContent(directoryPath: String = _uiState.value.currentPath) {
         loadJob?.cancel()
         refreshJob?.cancel()
-        val normalizedPath = normalizeDirectoryPath(directoryPath)
+        val normalizedPath = directoryPath.trim().trimEnd('/').let { if (it.isEmpty()) "" else "$it/" }
         loadJob = viewModelScope.launch {
             _uiState.update {
                 it.copy(
@@ -53,7 +50,7 @@ class FileExplorerViewModel(
                     isRefreshing = false,
                     currentPath = normalizedPath,
                     directoryTitle = null,
-                    parentPath = if (DocumentPath.isDocumentPath(normalizedPath)) "" else null,
+                    parentPath = if (normalizedPath.isNotEmpty()) "" else null,
                     directories = emptyList(),
                     tracks = emptyList(),
                     images = emptyList(),
@@ -61,7 +58,7 @@ class FileExplorerViewModel(
                     errorMessage = null,
                 )
             }
-            runCatching {
+            runSuspendCatching {
                 repository.getContent(normalizedPath)
             }.onSuccess { content ->
                 _uiState.update {
@@ -99,10 +96,8 @@ class FileExplorerViewModel(
                     errorMessage = null,
                 )
             }
-            runCatching {
-                if (DocumentPath.isDocumentPath(currentPath)) {
-                    repository.scanDirectory(currentPath)
-                }
+            runSuspendCatching {
+                repository.scanDirectory(currentPath)
                 repository.getContent(currentPath)
             }.onSuccess { content ->
                 _uiState.update { state ->
@@ -163,7 +158,7 @@ class FileExplorerViewModel(
 
     fun addTrackToPlaylist(playlistId: Long, trackId: Long) {
         viewModelScope.launch {
-            runCatching {
+            runSuspendCatching {
                 playlistRepository.addTrack(playlistId, trackId)
             }.onSuccess { result ->
                 val message = when (result) {
@@ -186,7 +181,7 @@ class FileExplorerViewModel(
         val trimmedName = name.trim()
         if (trimmedName.isEmpty()) return
         viewModelScope.launch {
-            runCatching {
+            runSuspendCatching {
                 val playlistId = playlistRepository.createPlaylist(trimmedName)
                 playlistRepository.addTrack(playlistId, trackId)
             }.onSuccess {
@@ -202,10 +197,10 @@ class FileExplorerViewModel(
         val trimmedName = name.trim()
         if (trimmedName.isEmpty()) return
         viewModelScope.launch {
-            runCatching {
+            runSuspendCatching {
                 val tracks = trackRepository.getTracksInDirectory(directoryPath)
                 if (tracks.isEmpty()) {
-                    return@runCatching null
+                    return@runSuspendCatching null
                 }
                 val playlistId = playlistRepository.createPlaylist(trimmedName)
                 playlistRepository.addTracks(
@@ -232,10 +227,10 @@ class FileExplorerViewModel(
 
     fun addDirectoryToPlaylist(playlistId: Long, directoryPath: String) {
         viewModelScope.launch {
-            runCatching {
+            runSuspendCatching {
                 val tracks = trackRepository.getTracksInDirectory(directoryPath)
                 if (tracks.isEmpty()) {
-                    return@runCatching null
+                    return@runSuspendCatching null
                 }
                 playlistRepository.addTracks(
                     playlistId = playlistId,
@@ -263,20 +258,4 @@ class FileExplorerViewModel(
         _uiState.update { it.copy(playlistMessage = null) }
     }
 
-    companion object {
-        fun provideFactory(context: Context): ViewModelProvider.Factory {
-            val applicationContext = context.applicationContext
-            return object : ViewModelProvider.Factory {
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    val repository = FileExplorerRepositoryImpl(applicationContext)
-                    val trackRepository = TrackRepositoryImpl(applicationContext)
-                    val playlistRepository = PlaylistRepositoryImpl(
-                        AppDatabase.getInstance(applicationContext).playlistDao(),
-                    )
-                    @Suppress("UNCHECKED_CAST")
-                    return FileExplorerViewModel(repository, playlistRepository, trackRepository) as T
-                }
-            }
-        }
-    }
 }

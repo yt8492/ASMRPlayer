@@ -1,50 +1,20 @@
 package com.yt8492.asmrplayer.ui.fileexplorer
 
-import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -56,87 +26,20 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.LifecycleResumeEffect
-import com.yt8492.asmrplayer.data.repository.DocumentPath
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yt8492.asmrplayer.R
-import com.yt8492.asmrplayer.data.model.AudioDirectory
-import com.yt8492.asmrplayer.data.model.DocumentFile
-import com.yt8492.asmrplayer.data.model.DocumentKind
-import com.yt8492.asmrplayer.ui.preview.FilePreviewDialog
-import com.yt8492.asmrplayer.ui.preview.PreviewFile
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.PictureAsPdf
+import com.yt8492.asmrplayer.data.model.BrowsableDirectory
 import com.yt8492.asmrplayer.data.model.ImageFile
-import com.yt8492.asmrplayer.data.model.Playlist
 import com.yt8492.asmrplayer.data.model.Track
-import coil.compose.AsyncImage
-import com.yt8492.asmrplayer.ui.common.rememberCurrentPlaybackTrackId
+import com.yt8492.asmrplayer.ui.common.PlaylistNameDialog
 import com.yt8492.asmrplayer.ui.common.SingleLineMarqueeText
 import com.yt8492.asmrplayer.ui.common.TrackInfoDialog
-import java.util.concurrent.TimeUnit
-
-@Composable
-fun FileExplorerRoute(
-    onTrackClick: (directoryPath: String, directoryTitle: String, tracks: List<Track>, index: Int) -> Unit,
-    modifier: Modifier = Modifier,
-    bottomBar: @Composable () -> Unit = {},
-    onOpenSettings: () -> Unit = {},
-    resetRequestKey: Int = 0,
-    viewModel: FileExplorerViewModel = viewModel(
-        factory = FileExplorerViewModel.provideFactory(LocalContext.current),
-    ),
-) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val rootTitle = stringResource(id = R.string.file_explorer_title)
-    LifecycleResumeEffect(Unit) {
-        viewModel.loadContent()
-        onPauseOrDispose { }
-    }
-    LaunchedEffect(resetRequestKey) {
-        if (resetRequestKey > 0) {
-            viewModel.resetToInitialState()
-        }
-    }
-
-    BackHandler(enabled = uiState.currentPath.isNotEmpty()) {
-        viewModel.openParentDirectory()
-    }
-
-    FileExplorerScreen(
-        uiState = uiState,
-        onOpenSettings = onOpenSettings,
-        onRetry = viewModel::refreshContent,
-        onRefresh = viewModel::refreshContent,
-        onDirectoryClick = viewModel::openDirectory,
-        onBack = viewModel::openParentDirectory,
-        onTrackClick = { index ->
-            val directoryTitle = uiState.directoryTitle ?: directoryDisplayTitle(uiState.currentPath, rootTitle)
-            onTrackClick(uiState.currentPath, directoryTitle, uiState.tracks, index)
-        },
-        onAddTrackToPlaylist = viewModel::addTrackToPlaylist,
-        onCreatePlaylistAndAddTrack = viewModel::createPlaylistAndAddTrack,
-        onCreatePlaylistFromDirectory = viewModel::createPlaylistFromDirectory,
-        onAddDirectoryToPlaylist = viewModel::addDirectoryToPlaylist,
-        onErrorShown = viewModel::consumeError,
-        onPlaylistMessageShown = viewModel::consumePlaylistMessage,
-        bottomBar = bottomBar,
-        resetRequestKey = resetRequestKey,
-        modifier = modifier,
-    )
-}
+import com.yt8492.asmrplayer.ui.common.rememberCurrentPlaybackTrackId
+import com.yt8492.asmrplayer.ui.preview.FilePreviewDialog
+import com.yt8492.asmrplayer.ui.preview.ImagePreviewDialog
+import com.yt8492.asmrplayer.ui.preview.PreviewFile
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -162,8 +65,8 @@ fun FileExplorerScreen(
     val currentPlaybackTrackId by rememberCurrentPlaybackTrackId()
     var selectedTrack by remember { mutableStateOf<Track?>(null) }
     var trackForNewPlaylist by remember { mutableStateOf<Track?>(null) }
-    var selectedDirectory by remember { mutableStateOf<AudioDirectory?>(null) }
-    var directoryForNewPlaylist by remember { mutableStateOf<AudioDirectory?>(null) }
+    var selectedDirectory by remember { mutableStateOf<BrowsableDirectory?>(null) }
+    var directoryForNewPlaylist by remember { mutableStateOf<BrowsableDirectory?>(null) }
     var previewImage by remember { mutableStateOf<ImageFile?>(null) }
     var previewFile by rememberSaveable(stateSaver = PreviewFile.Saver) { mutableStateOf<PreviewFile?>(null) }
     var trackForInfo by remember { mutableStateOf<Track?>(null) }
@@ -218,10 +121,10 @@ fun FileExplorerScreen(
                     if (!isRoot) {
                         IconButton(
                             onClick = {
-                                selectedDirectory = AudioDirectory(
+                                selectedDirectory = BrowsableDirectory(
                                     path = uiState.currentPath,
                                     name = title,
-                                    trackCount = uiState.tracks.size,
+                                    itemCount = uiState.tracks.size,
                                 )
                             },
                         ) {
@@ -311,7 +214,9 @@ fun FileExplorerScreen(
     }
 
     trackForNewPlaylist?.let { track ->
-        CreatePlaylistDialog(
+        PlaylistNameDialog(
+            title = stringResource(id = R.string.playlist_create),
+            confirmText = stringResource(id = R.string.common_create),
             initialName = "",
             onDismiss = { trackForNewPlaylist = null },
             onConfirm = { name ->
@@ -322,7 +227,9 @@ fun FileExplorerScreen(
     }
 
     directoryForNewPlaylist?.let { directory ->
-        CreatePlaylistDialog(
+        PlaylistNameDialog(
+            title = stringResource(id = R.string.playlist_create),
+            confirmText = stringResource(id = R.string.common_create),
             initialName = directory.name,
             onDismiss = { directoryForNewPlaylist = null },
             onConfirm = { name ->
@@ -351,351 +258,6 @@ fun FileExplorerScreen(
     }
 }
 
-@Composable
-private fun EmptyFileExplorer(
-    onRetry: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp)
-            .fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = stringResource(id = R.string.file_explorer_empty),
-            style = MaterialTheme.typography.bodyLarge,
-        )
-        Text(text = stringResource(id = R.string.file_explorer_library_settings_description))
-        TextButton(onClick = onRetry) {
-            Text(text = stringResource(id = R.string.common_retry))
-        }
-    }
-}
-
-@Composable
-private fun FileExplorerList(
-    directories: List<AudioDirectory>,
-    tracks: List<Track>,
-    images: List<ImageFile>,
-    documents: List<DocumentFile>,
-    onDirectoryClick: (String) -> Unit,
-    onFolderPermissionRequired: () -> Unit,
-    onTrackClick: (Int) -> Unit,
-    onTrackLongClick: (Track) -> Unit,
-    onImageClick: (ImageFile) -> Unit,
-    onDocumentClick: (DocumentFile) -> Unit,
-    onAddToPlaylistClick: (Track) -> Unit,
-    onAddDirectoryToPlaylistClick: (AudioDirectory) -> Unit,
-    currentPlaybackTrackId: Long?,
-    resetRequestKey: Int = 0,
-    modifier: Modifier = Modifier,
-) {
-    val listState = rememberLazyListState()
-    LaunchedEffect(resetRequestKey) {
-        if (resetRequestKey > 0) {
-            listState.scrollToItem(0)
-        }
-    }
-    LazyColumn(
-        modifier = modifier,
-        state = listState,
-    ) {
-        items(
-            items = directories,
-            key = { it.path },
-        ) { directory ->
-            ListItem(
-                modifier = Modifier.clickable {
-                    if (directory.hasPermission) onDirectoryClick(directory.path) else onFolderPermissionRequired()
-                },
-                leadingContent = {
-                    Icon(
-                        imageVector = Icons.Filled.Folder,
-                        contentDescription = stringResource(id = R.string.file_explorer_folder_content_description),
-                    )
-                },
-                headlineContent = {
-                    SingleLineMarqueeText(
-                        text = directory.name,
-                    )
-                },
-                supportingContent = {
-                    Text(if (directory.hasPermission) {
-                        stringResource(id = R.string.file_explorer_item_count, directory.trackCount)
-                    } else {
-                        "アクセス許可が必要です。タップして設定を開く"
-                    })
-                },
-                trailingContent = {
-                    IconButton(onClick = { onAddDirectoryToPlaylistClick(directory) }, enabled = directory.hasPermission) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.PlaylistAdd,
-                            contentDescription = stringResource(id = R.string.playlist_add_folder),
-                        )
-                    }
-                },
-            )
-            HorizontalDivider()
-        }
-        itemsIndexed(
-            items = tracks,
-            key = { _, track -> track.id },
-        ) { index, track ->
-            val isCurrentTrack = track.id == currentPlaybackTrackId
-            val contentColor = if (isCurrentTrack) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            }
-            ListItem(
-                modifier = Modifier.combinedClickable(
-                    onClick = { onTrackClick(index) },
-                    onLongClickLabel = stringResource(id = R.string.track_info_show),
-                    onLongClick = { onTrackLongClick(track) },
-                ),
-                leadingContent = {
-                    Icon(
-                        imageVector = if (isCurrentTrack) Icons.Filled.PlayArrow else Icons.Filled.MusicNote,
-                        contentDescription = null,
-                        tint = if (isCurrentTrack) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
-                },
-                headlineContent = {
-                    SingleLineMarqueeText(
-                        text = track.title,
-                        color = contentColor,
-                    )
-                },
-                supportingContent = {
-                    SingleLineMarqueeText(
-                        text = track.artist,
-                        color = if (isCurrentTrack) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
-                },
-                trailingContent = {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = formatDuration(track.durationMs),
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                        IconButton(onClick = { onAddToPlaylistClick(track) }) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.PlaylistAdd,
-                                contentDescription = stringResource(id = R.string.playlist_add_track),
-                            )
-                        }
-                    }
-                },
-            )
-            HorizontalDivider()
-        }
-        items(
-            items = images,
-            key = { image -> "image-${image.id}" },
-        ) { image ->
-            ListItem(
-                modifier = Modifier.clickable { onImageClick(image) },
-                leadingContent = {
-                    AsyncImage(
-                        model = image.uri,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(MaterialTheme.shapes.small),
-                        contentScale = ContentScale.Crop,
-                        placeholder = rememberVectorPainter(Icons.Filled.Image),
-                        error = rememberVectorPainter(Icons.Filled.Image),
-                        fallback = rememberVectorPainter(Icons.Filled.Image),
-                    )
-                },
-                headlineContent = {
-                    SingleLineMarqueeText(
-                        text = image.title,
-                    )
-                },
-                supportingContent = {
-                    Text(
-                        text = image.mimeType.ifEmpty { stringResource(id = R.string.file_explorer_image_preview) },
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
-            )
-            HorizontalDivider()
-        }
-        items(documents, key = { "document-${it.id}" }) { document ->
-            ListItem(
-                modifier = Modifier.clickable { onDocumentClick(document) },
-                leadingContent = {
-                    Icon(if (document.kind == DocumentKind.PDF) Icons.Filled.PictureAsPdf else Icons.Filled.Description,
-                        contentDescription = null)
-                },
-                headlineContent = { SingleLineMarqueeText(document.name) },
-                supportingContent = { Text(if (document.kind == DocumentKind.PDF) "PDF" else "txt") },
-            )
-            HorizontalDivider()
-        }
-    }
-}
-
-@Composable
-private fun ImagePreviewDialog(
-    image: ImageFile,
-    onDismiss: () -> Unit,
-) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .wrapContentHeight()
-                .padding(horizontal = 16.dp)
-                .clip(MaterialTheme.shapes.large)
-                .background(MaterialTheme.colorScheme.surface),
-        ) {
-            SingleLineMarqueeText(
-                text = image.title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-            )
-            AsyncImage(
-                model = image.uri,
-                contentDescription = stringResource(id = R.string.file_explorer_image_preview),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 680.dp),
-                contentScale = ContentScale.Fit,
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                contentAlignment = Alignment.CenterEnd,
-            ) {
-                TextButton(onClick = onDismiss) {
-                    Text(text = stringResource(id = R.string.file_explorer_image_close))
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun PlaylistPickerSheet(
-    playlists: List<Playlist>,
-    onDismiss: () -> Unit,
-    onCreatePlaylist: () -> Unit,
-    onPlaylistClick: (Playlist) -> Unit,
-) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = stringResource(id = R.string.playlist_select_title),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            FilledTonalButton(
-                onClick = onCreatePlaylist,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = null,
-                )
-                Text(text = stringResource(id = R.string.playlist_create))
-            }
-            if (playlists.isEmpty()) {
-                Text(
-                    text = stringResource(id = R.string.playlist_empty),
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(vertical = 16.dp),
-                )
-            } else {
-                playlists.forEach { playlist ->
-                    ListItem(
-                        modifier = Modifier.clickable { onPlaylistClick(playlist) },
-                        headlineContent = {
-                            SingleLineMarqueeText(
-                                text = playlist.name,
-                            )
-                        },
-                        supportingContent = {
-                            Text(text = stringResource(id = R.string.playlist_track_count, playlist.trackCount))
-                        },
-                    )
-                    HorizontalDivider()
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CreatePlaylistDialog(
-    initialName: String,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
-) {
-    var name by remember(initialName) { mutableStateOf(initialName) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(text = stringResource(id = R.string.playlist_create)) },
-        text = {
-            TextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text(text = stringResource(id = R.string.playlist_name)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(name) },
-                enabled = name.isNotBlank(),
-            ) {
-                Text(text = stringResource(id = R.string.common_create))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(id = R.string.common_cancel))
-            }
-        },
-    )
-}
-
-private fun formatDuration(durationMs: Long): String {
-    val totalSeconds = TimeUnit.MILLISECONDS.toSeconds(durationMs)
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return "%d:%02d".format(minutes, seconds)
-}
-
 @Preview(showBackground = true)
 @Composable
 private fun FileExplorerScreenPreview() {
@@ -703,7 +265,7 @@ private fun FileExplorerScreenPreview() {
         uiState = FileExplorerUiState(
             currentPath = "Music/Sample/",
             directories = listOf(
-                AudioDirectory(path = "Music/Sample/Nested/", name = "Nested", trackCount = 3),
+                BrowsableDirectory(path = "Music/Sample/Nested/", name = "Nested", itemCount = 3),
             ),
             tracks = listOf(
                 Track(
@@ -742,6 +304,5 @@ private fun FileExplorerScreenPreview() {
 
 internal const val FILE_EXPLORER_PULL_TO_REFRESH_TAG = "file_explorer_pull_to_refresh"
 
-private fun directoryDisplayTitle(path: String, rootTitle: String): String =
-    if (DocumentPath.isDocumentPath(path)) "フォルダ"
-    else path.trim('/').substringAfterLast('/').ifEmpty { rootTitle }
+internal fun directoryDisplayTitle(path: String, rootTitle: String): String =
+    if (path.isEmpty()) rootTitle else "フォルダ"

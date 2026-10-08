@@ -35,8 +35,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -44,6 +44,8 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yt8492.asmrplayer.data.model.LibraryFolder
+import com.yt8492.asmrplayer.di.appContainer
+import com.yt8492.asmrplayer.di.settingsFactory
 import java.text.DateFormat
 import java.util.Date
 
@@ -53,7 +55,7 @@ fun SettingsRoute(
     onCompleteSetup: () -> Unit = {},
     onBack: (() -> Unit)? = null,
     bottomBar: @Composable () -> Unit = {},
-    viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.factory(LocalContext.current)),
+    viewModel: SettingsViewModel = viewModel(factory = LocalContext.current.appContainer().settingsFactory()),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val folderLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->

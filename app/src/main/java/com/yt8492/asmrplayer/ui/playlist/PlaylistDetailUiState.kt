@@ -1,6 +1,7 @@
 package com.yt8492.asmrplayer.ui.playlist
 
 import com.yt8492.asmrplayer.data.model.Playlist
+import com.yt8492.asmrplayer.data.model.PlaylistTrackItem
 import com.yt8492.asmrplayer.data.model.Track
 
 data class PlaylistDetailUiState(
@@ -13,8 +14,3 @@ data class PlaylistDetailUiState(
     val tracks: List<Track>
         get() = playlistTracks.map { it.track }
 }
-
-data class PlaylistTrackItem(
-    val playlistTrackId: Long,
-    val track: Track,
-)
