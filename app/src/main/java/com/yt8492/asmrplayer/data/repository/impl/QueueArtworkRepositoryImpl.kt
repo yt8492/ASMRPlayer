@@ -24,7 +24,7 @@ internal class QueueArtworkRepositoryImpl(
     }
 
     override suspend fun isImageUriUsed(imageUri: Uri): Boolean = withContext(ioDispatcher) {
-        queueArtworkDao.countByImageUri(imageUri.toString()) > 0
+        queueArtworkDao.isImageUriUsed(imageUri.toString())
     }
 
     override suspend fun saveQueueArtwork(queueType: String, queueKey: String, imageUri: Uri) = withContext(ioDispatcher) {

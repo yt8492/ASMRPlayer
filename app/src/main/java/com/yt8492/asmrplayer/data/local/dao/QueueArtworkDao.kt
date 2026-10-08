@@ -15,8 +15,8 @@ interface QueueArtworkDao {
     @Query("SELECT * FROM queue_artworks WHERE queueType = :queueType AND queueKey = :queueKey")
     suspend fun getQueueArtwork(queueType: String, queueKey: String): QueueArtworkEntity?
 
-    @Query("SELECT COUNT(*) FROM queue_artworks WHERE imageUri = :imageUri")
-    suspend fun countByImageUri(imageUri: String): Int
+    @Query("SELECT EXISTS(SELECT 1 FROM queue_artworks WHERE imageUri = :imageUri)")
+    suspend fun isImageUriUsed(imageUri: String): Boolean
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertQueueArtwork(queueArtwork: QueueArtworkEntity)

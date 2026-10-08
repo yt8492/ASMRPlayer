@@ -87,6 +87,7 @@ class RefactorViewModelTest {
             override suspend fun removeFolder(uri: String) = Unit
             override suspend fun rootDirectories() = emptyList<BrowsableDirectory>()
             override suspend fun getContent(directoryPath: String): FileExplorerContent = error("unused")
+            override suspend fun getTracksInDirectory(directoryPath: String) = emptyList<Track>()
             override suspend fun getTracks(ids: List<Long>) = emptyList<Track>()
         }
         val model = SettingsViewModel(folders).also(models::add)

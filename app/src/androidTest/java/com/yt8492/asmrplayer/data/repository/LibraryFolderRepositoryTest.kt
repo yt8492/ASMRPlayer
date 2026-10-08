@@ -14,11 +14,16 @@ import com.yt8492.asmrplayer.data.datasource.document.FolderDocument
 import com.yt8492.asmrplayer.data.datasource.document.FolderDocumentSource
 import com.yt8492.asmrplayer.data.library.DOCUMENT_TRACK_ID_BASE
 import com.yt8492.asmrplayer.data.library.DocumentPath
+import com.yt8492.asmrplayer.data.library.toEntity
 import com.yt8492.asmrplayer.data.local.database.AppDatabase
+import com.yt8492.asmrplayer.data.model.documentKind
 import com.yt8492.asmrplayer.data.repository.impl.FileExplorerRepositoryImpl
 import com.yt8492.asmrplayer.data.repository.impl.LibraryFolderRepositoryImpl
 import com.yt8492.asmrplayer.data.repository.impl.TrackRepositoryImpl
 import java.io.IOException
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.Executor
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.*
@@ -33,11 +38,18 @@ class LibraryFolderRepositoryTest {
     private lateinit var repository: LibraryFolderRepository
     private val tree = Uri.parse("content://test.documents/tree/root")
     private val rootPath = DocumentPath(tree.toString(), "root")
+    private data class Query(val sql: String, val args: List<Any?>)
+    private val queries = ConcurrentLinkedQueue<Query>()
+    private fun librarySelects() = queries.filter {
+        it.sql.trimStart().startsWith("SELECT", ignoreCase = true) && "library_" in it.sql
+    }
 
     @Before
     fun setUp() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).build()
+        database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+            .setQueryCallback({ sql, args -> queries.add(Query(sql, args.toList())) }, Executor { it.run() })
+            .build()
         source = FakeDocumentSource()
         repository = LibraryFolderRepositoryImpl(database.libraryFolderDao(), source)
     }
@@ -303,6 +315,129 @@ class LibraryFolderRepositoryTest {
         assertEquals(3, source.metadataReads)
     }
 
+    @Test
+    fun 件数集計はMIME優先と拡張子補完を保ち非アクティブ文書を除外する() = runBlocking {
+        repository.addFolder(tree)
+        val fixtures = listOf(
+            "application/pdf" to "説明.txt",
+            "APPLICATION/PDF" to "拡張子なし",
+            "text/plain" to "メモ.pdf",
+            "TEXT/PLAIN" to "拡張子なし",
+            "application/octet-stream" to "説明.PDF",
+            "application/octet-stream" to "説明.TxT",
+            "" to ".pdf",
+            "" to "説明.txt",
+            "" to "pdf",
+            "image/jpeg" to "画像.pdf",
+            "text/html" to "ページ.txt",
+            Document.MIME_TYPE_DIR to "フォルダ.txt",
+            "application/zip" to "圧縮.pdf",
+        )
+        val dao = database.libraryFolderDao()
+        dao.saveDocuments(fixtures.mapIndexed { index, (mime, name) ->
+            document("fixture-$index", name, mime).toEntity().copy(parentId = "root")
+        } + document("inactive", "削除済み.txt", "text/plain").toEntity().copy(active = false))
+        val expectedCount = fixtures.count { (mime, name) -> documentKind(mime, name) != null }
+        val folder = repository.getFolders().single()
+        assertEquals(expectedCount, folder.documentCount)
+        assertEquals(expectedCount, repository.observeFolders().first().single().documentCount)
+        assertEquals(expectedCount + folder.audioCount + folder.imageCount, repository.rootDirectories().single().itemCount)
+    }
+
+    @Test
+    fun フォルダ一覧とルート件数は一度のクエリと権限取得で集計する() = runBlocking {
+        repository.addFolder(tree)
+        repository.addFolder(Uri.parse("content://other.documents/tree/root"))
+        for (load in listOf<suspend () -> Unit>({ repository.getFolders(); Unit }, { repository.rootDirectories(); Unit })) {
+            queries.clear()
+            source.permissionReads = 0
+            load()
+            assertEquals(1, librarySelects().size)
+            assertEquals(1, source.permissionReads)
+        }
+    }
+
+    @Test
+    fun 直下の子と件数だけを取得し別ツリーや非アクティブ文書を混ぜない() = runBlocking {
+        source.children["root"] = source.children.getValue("root") + document("empty", "空", Document.MIME_TYPE_DIR)
+        source.children["nested"] = source.children.getValue("nested") + listOf(
+            document("pdf", "説明.pdf", "application/pdf"),
+            document("deep", "さらに下", Document.MIME_TYPE_DIR),
+        )
+        source.children["deep"] = listOf(document("deep-audio", "深い曲.wav", "audio/wav"))
+        repository.addFolder(tree)
+        repository.addFolder(Uri.parse("content://other.documents/tree/root"))
+        database.libraryFolderDao().saveDocuments(listOf(
+            document("deleted", "削除済み.wav", "audio/wav").toEntity().copy(parentId = "nested", active = false),
+        ))
+        queries.clear()
+        val content = repository.getContent(rootPath.encode())
+        assertEquals(listOf("voice.wav"), content.tracks.map { it.title })
+        assertEquals(3, content.directories.single { it.name == "特典" }.itemCount)
+        assertEquals(0, content.directories.single { it.name == "空" }.itemCount)
+        assertFalse(librarySelects().any {
+            it.sql.trim().replace(Regex("\\s+"), " ") == "SELECT * FROM library_documents WHERE treeUri = ?"
+        })
+        assertEquals("作品", content.directoryTitle)
+        assertEquals("", content.parentPath)
+    }
+
+    @Test
+    fun 音声専用取得は画像や件数を取得せず従来の名前順を保つ() = runBlocking {
+        source.children["root"] = listOf(
+            document("z", "Zulu.wav", "audio/wav"),
+            document("a", "Alpha.wav", "audio/wav"),
+            document("unicode", "Áudio.wav", "audio/wav"),
+            document("ja", "あ.wav", "audio/wav"),
+            document("pdf", "説明.pdf", "application/pdf"),
+            document("image", "表紙.png", "image/png"),
+        )
+        repository.addFolder(tree)
+        queries.clear()
+        val tracks = TrackRepositoryImpl(repository).getTracksInDirectory(rootPath.encode())
+        assertEquals(listOf("Alpha.wav", "Zulu.wav", "Áudio.wav", "あ.wav"), tracks.map { it.title })
+        val documentQueries = librarySelects().filter { "FROM library_documents" in it.sql }
+        assertEquals(2, documentQueries.size)
+        assertTrue(documentQueries.all { "EXISTS(" in it.sql || "mimeType GLOB 'audio/*'" in it.sql })
+        assertTrue(runCatching { repository.getTracksInDirectory(DocumentPath(tree.toString(), "missing").encode()) }.exceptionOrNull() is IOException)
+        source.grants.clear()
+        assertTrue(runCatching { repository.getTracksInDirectory(rootPath.encode()) }.exceptionOrNull() is SecurityException)
+    }
+
+    @Test
+    fun 大量の重複行は一度だけ問い合わせて行順と重複を復元する() = runBlocking {
+        repository.addFolder(tree)
+        val track = repository.getContent(rootPath.encode()).tracks.single()
+        queries.clear()
+        source.permissionReads = 0
+        val tracks = TrackRepositoryImpl(repository).getTracks(List(1801) { track.id })
+        assertEquals(List(1801) { track }, tracks)
+        assertEquals(1, source.permissionReads)
+        val lookups = librarySelects().filter { "id IN" in it.sql }
+        assertEquals(1, lookups.size)
+        assertEquals(1, lookups.single().args.size)
+    }
+
+    @Test
+    fun 分割取得でも権限一覧を共有し次の取得では権限喪失を反映する() = runBlocking {
+        repository.addFolder(tree)
+        val dao = database.libraryFolderDao()
+        dao.saveDocuments(List(1100) { index ->
+            document("bulk-$index", "$index.wav", "audio/wav").toEntity().copy(parentId = "root")
+        })
+        val ids = dao.getDocuments(tree.toString()).filter { it.documentId.startsWith("bulk-") }
+            .map { it.id + DOCUMENT_TRACK_ID_BASE }
+        queries.clear()
+        source.permissionReads = 0
+        assertEquals(1100, repository.getTracks(ids).size)
+        assertEquals(1, source.permissionReads)
+        val lookups = librarySelects().filter { "id IN" in it.sql }
+        assertEquals(listOf(900, 200), lookups.map { it.args.size })
+        source.grants.clear()
+        assertTrue(repository.getTracks(ids).isEmpty())
+        assertEquals(2, source.permissionReads)
+    }
+
     private fun contextWithoutMediaStoreAccess(): Context = object : ContextWrapper(
         ApplicationProvider.getApplicationContext<Context>(),
     ) {
@@ -318,13 +453,14 @@ class LibraryFolderRepositoryTest {
         var failParent: String? = null
         var cancelParent: String? = null
         var metadataReads = 0
+        var permissionReads = 0
         val children = mutableMapOf(
             "root" to listOf(document("audio", "voice.wav", "audio/wav"), document("image", "cover.png", "image/png"),
                 document("nested", "特典", Document.MIME_TYPE_DIR)),
             "nested" to listOf(document("extra", "extra.wav", "audio/wav")),
         )
 
-        override fun hasPermission(uri: String) = uri in grants
+        override fun readableTreeUris(): Set<String> { permissionReads += 1; return grants.toSet() }
         override fun persistPermission(uri: Uri) { grants.add(uri.toString()) }
         override fun releasePermission(uri: String) { grants.remove(uri) }
         override fun readAudioMetadata(item: FolderDocument): FolderDocument { metadataReads += 1; return item }

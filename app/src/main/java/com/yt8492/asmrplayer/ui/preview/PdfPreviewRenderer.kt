@@ -41,6 +41,7 @@ internal class PdfPreviewRenderer(
         override fun sizeOf(key: Tile, value: Bitmap) = value.allocationByteCount
     }
     private var requestedTiles = emptyList<Tile>()
+    private val pageLayouts = PdfPageLayoutCache()
     private data class Tile(val page: Int, val renderWidth: Int, val x: Int, val y: Int)
 
     fun load(uri: Uri, checkActive: () -> Unit): List<PageSize> {
@@ -55,6 +56,8 @@ internal class PdfPreviewRenderer(
     }
 
     fun resetGeometry() { requestedTiles = emptyList() }
+
+    fun contentHeight(pages: List<PageSize>, width: Int): Float = pageLayouts.get(pages, width).contentHeight
 
     private fun openPdf(uri: Uri, checkActive: () -> Unit): PdfRenderer {
         val descriptor = context.contentResolver.openFileDescriptor(uri, "r") ?: throw IOException("ファイルを開けません。")
@@ -88,7 +91,7 @@ internal class PdfPreviewRenderer(
     }
 
     fun draw(canvas: Canvas, pages: List<PageSize>, width: Int, height: Int, transform: PreviewTransform) {
-        val pdfTops = pageTops(pages, width)
+        val layout = pageLayouts.get(pages, width)
         val visibleTop = -transform.y / transform.scale
         val visibleBottom = (height - transform.y) / transform.scale
         val visibleLeft = -transform.x / transform.scale
@@ -97,10 +100,9 @@ internal class PdfPreviewRenderer(
         val renderWidth = ceil(width * zoomBucket).toInt()
         val tileRatio = renderWidth.toFloat() / width
         val needed = mutableListOf<Tile>()
-        pages.forEachIndexed { index, page ->
-            val top = pdfTops[index]
-            val pageHeight = width.toFloat() * page.height / page.width
-            if (top > visibleBottom || top + pageHeight < visibleTop) return@forEachIndexed
+        for (index in layout.visiblePages(visibleTop, visibleBottom)) {
+            val top = layout.top(index)
+            val pageHeight = layout.height(index)
             canvas.drawRect(0f, top, width.toFloat(), top + pageHeight, paper)
             val startX = max(0, floor(visibleLeft * tileRatio / TILE_SIZE).toInt())
             val endX = min((renderWidth - 1) / TILE_SIZE, floor(visibleRight * tileRatio / TILE_SIZE).toInt())
@@ -183,18 +185,5 @@ internal class PdfPreviewRenderer(
 
     companion object {
         private const val TILE_SIZE = 512
-        const val PAGE_GAP = 12f
-        fun pageTops(pages: List<PageSize>, width: Int): List<Float> {
-            var top = 0f
-            return pages.map { page ->
-                val result = top
-                top += width.toFloat() * page.height / page.width + PAGE_GAP
-                result
-            }
-        }
-        fun contentHeight(pages: List<PageSize>, width: Int): Float {
-            val last = pages.lastOrNull() ?: return 0f
-            return pageTops(pages, width).last() + width.toFloat() * last.height / last.width
-        }
     }
 }

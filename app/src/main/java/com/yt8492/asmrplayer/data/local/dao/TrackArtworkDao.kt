@@ -15,8 +15,8 @@ interface TrackArtworkDao {
     @Query("SELECT * FROM track_artworks WHERE trackId = :trackId")
     suspend fun getTrackArtwork(trackId: Long): TrackArtworkEntity?
 
-    @Query("SELECT COUNT(*) FROM track_artworks WHERE imageUri = :imageUri")
-    suspend fun countByImageUri(imageUri: String): Int
+    @Query("SELECT EXISTS(SELECT 1 FROM track_artworks WHERE imageUri = :imageUri)")
+    suspend fun isImageUriUsed(imageUri: String): Boolean
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertTrackArtwork(trackArtwork: TrackArtworkEntity)

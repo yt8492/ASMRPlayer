@@ -136,7 +136,7 @@ internal class PreviewCanvasView(
                 content.bitmap.height * ratio
             }
             is PreviewScene.Text -> content.layout.height + 2 * content.padding
-            is PreviewScene.Pdf -> PdfPreviewRenderer.contentHeight(content.pages, width)
+            is PreviewScene.Pdf -> pdf.contentHeight(content.pages, width)
             null -> 0f
         }
         transform.clamp()
@@ -186,6 +186,7 @@ internal class PreviewCanvasView(
         imageLoadJob.cancel()
         scene = null
         pdf.dispose()
+        executor.execute { loader.clear() }
         executor.shutdown()
     }
 

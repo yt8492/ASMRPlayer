@@ -15,6 +15,6 @@ internal class TrackRepositoryImpl(
 
     override suspend fun getTracksInDirectory(directoryPath: String): List<Track> {
         val path = DocumentPath.parse(directoryPath) ?: return emptyList()
-        return folderRepository.getContent(path.encode()).tracks
+        return folderRepository.getTracksInDirectory(path.encode())
     }
 }

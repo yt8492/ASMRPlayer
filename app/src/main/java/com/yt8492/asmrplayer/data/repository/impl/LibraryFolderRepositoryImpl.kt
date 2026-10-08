@@ -16,13 +16,12 @@ import com.yt8492.asmrplayer.data.model.BrowsableDirectory
 import com.yt8492.asmrplayer.data.model.FileExplorerContent
 import com.yt8492.asmrplayer.data.model.LibraryFolder
 import com.yt8492.asmrplayer.data.model.Track
-import com.yt8492.asmrplayer.data.model.documentKind
 import com.yt8492.asmrplayer.data.repository.DifferentFolderSelectedException
 import com.yt8492.asmrplayer.data.repository.LibraryFolderRepository
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -36,13 +35,15 @@ internal class LibraryFolderRepositoryImpl(
 ) : LibraryFolderRepository {
     private val scanner = LibraryFolderScanner(source)
 
-    override fun observeFolders() = combine(dao.observeFolders(), dao.observeActiveDocuments()) { folders, documents ->
-        val counts = documents.filter { documentKind(it.mimeType, it.name) != null }.groupingBy { it.treeUri }.eachCount()
-        folders.map { it.toModel(counts[it.uri] ?: 0) }
+    override fun observeFolders() = dao.observeFolderSummaries().map { summaries ->
+        val granted = source.readableTreeUris()
+        summaries.map { it.folder.toModel(it.documentCount, granted) }
     }.flowOn(ioDispatcher)
 
     override suspend fun getFolders(): List<LibraryFolder> = withContext(ioDispatcher) {
-        dao.getFolders().map { it.toModel(documentCount(it.uri)) }
+        val summaries = dao.getFolderSummaries()
+        val granted = source.readableTreeUris()
+        summaries.map { it.folder.toModel(it.documentCount, granted) }
     }
 
     override fun hasPermission(uri: String): Boolean = source.hasPermission(uri)
@@ -50,7 +51,7 @@ internal class LibraryFolderRepositoryImpl(
     override suspend fun addFolder(uri: Uri) = withContext(ioDispatcher) {
         mutationMutex.withLock {
             source.persistPermission(uri)
-            val existing = dao.getFolders().firstOrNull { it.uri == uri.toString() }
+            val existing = dao.getFolder(uri.toString())
             val folder = existing ?: LibraryFolderEntity(
                 uri = uri.toString(),
                 name = DocumentsContract.getTreeDocumentId(uri).substringAfterLast('/').substringAfterLast(':'),
@@ -62,7 +63,7 @@ internal class LibraryFolderRepositoryImpl(
 
     override suspend fun reloadFolder(uri: String) = withContext(ioDispatcher) {
         mutationMutex.withLock {
-            val folder = dao.getFolders().firstOrNull { it.uri == uri } ?: return@withLock
+            val folder = dao.getFolder(uri) ?: return@withLock
             scanFolder(folder)
         }
     }
@@ -70,7 +71,7 @@ internal class LibraryFolderRepositoryImpl(
     override suspend fun restoreFolderAccess(folderUri: String, selectedUri: Uri) = withContext(ioDispatcher) {
         mutationMutex.withLock {
             if (folderUri != selectedUri.toString()) throw DifferentFolderSelectedException()
-            val folder = dao.getFolders().firstOrNull { it.uri == folderUri }
+            val folder = dao.getFolder(folderUri)
                 ?: throw IOException("フォルダは登録解除されています。")
             source.persistPermission(selectedUri)
             // 同じ登録と文書IDを使い、プレイリストなどの参照を維持する。
@@ -87,27 +88,39 @@ internal class LibraryFolderRepositoryImpl(
     }
 
     override suspend fun rootDirectories(): List<BrowsableDirectory> = withContext(ioDispatcher) {
-        dao.getFolders().map { folder ->
+        val summaries = dao.getFolderSummaries()
+        val granted = source.readableTreeUris()
+        summaries.map { (folder, documentCount) ->
             BrowsableDirectory(
                 path = DocumentPath(folder.uri, DocumentsContract.getTreeDocumentId(Uri.parse(folder.uri))).encode(),
                 name = folder.name,
-                itemCount = folder.audioCount + folder.imageCount + documentCount(folder.uri),
-                hasPermission = hasPermission(folder.uri),
+                itemCount = folder.audioCount + folder.imageCount + documentCount,
+                hasPermission = folder.uri in granted,
             )
         }
     }
 
     override suspend fun getContent(directoryPath: String): FileExplorerContent = withContext(ioDispatcher) {
-        val path = DocumentPath.parse(directoryPath) ?: throw IOException("フォルダの参照先が不正です。")
-        val folder = dao.getFolders().firstOrNull { it.uri == path.treeUri }
-            ?: throw IOException("フォルダは登録解除されています。設定から追加してください。")
-        checkPermission(folder.uri)
-        directoryContent(path, dao.getDocuments(folder.uri).filter { it.active })
+        val path = registeredPath(directoryPath)
+        val snapshot = dao.getDirectorySnapshot(path.treeUri, path.documentId)
+            ?: throw IOException("フォルダが見つかりません。設定から再読み込みしてください。")
+        directoryContent(path, snapshot)
+    }
+
+    override suspend fun getTracksInDirectory(directoryPath: String): List<Track> = withContext(ioDispatcher) {
+        val path = registeredPath(directoryPath)
+        val tracks = dao.getDirectoryTracks(path.treeUri, path.documentId)
+            ?: throw IOException("フォルダが見つかりません。設定から再読み込みしてください。")
+        tracks.sortedBy { it.name.lowercase() }.map { it.toTrack() }
     }
 
     override suspend fun getTracks(ids: List<Long>): List<Track> = withContext(ioDispatcher) {
-        ids.filter { it >= DOCUMENT_TRACK_ID_BASE }.map { it - DOCUMENT_TRACK_ID_BASE }.chunked(900).flatMap { chunk ->
-            dao.getDocumentsByIds(chunk).filter { source.hasPermission(it.treeUri) && it.mimeType.startsWith("audio/") }
+        val documentIds = ids.asSequence().filter { it >= DOCUMENT_TRACK_ID_BASE }
+            .map { it - DOCUMENT_TRACK_ID_BASE }.distinct().toList()
+        if (documentIds.isEmpty()) return@withContext emptyList()
+        val granted = source.readableTreeUris()
+        documentIds.chunked(900).flatMap { chunk ->
+            dao.getDocumentsByIds(chunk).filter { it.treeUri in granted }
                 .map { it.toTrack() }
         }
     }
@@ -142,12 +155,17 @@ internal class LibraryFolderRepositoryImpl(
         if (!hasPermission(uri)) throw SecurityException("フォルダのアクセス許可がありません")
     }
 
-    private suspend fun documentCount(uri: String): Int = dao.getDocuments(uri).count {
-        it.active && documentKind(it.mimeType, it.name) != null
+    private suspend fun registeredPath(directoryPath: String): DocumentPath {
+        val path = DocumentPath.parse(directoryPath) ?: throw IOException("フォルダの参照先が不正です。")
+        if (dao.getFolder(path.treeUri) == null) {
+            throw IOException("フォルダは登録解除されています。設定から追加してください。")
+        }
+        checkPermission(path.treeUri)
+        return path
     }
 
-    private fun LibraryFolderEntity.toModel(documentCount: Int): LibraryFolder {
-        val granted = hasPermission(uri)
+    private fun LibraryFolderEntity.toModel(documentCount: Int, readableTreeUris: Set<String>): LibraryFolder {
+        val granted = uri in readableTreeUris
         return LibraryFolder(
             uri, name, audioCount, imageCount, lastScanAt,
             error = if (granted) error else null,

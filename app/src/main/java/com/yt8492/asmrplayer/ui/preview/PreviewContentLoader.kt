@@ -20,6 +20,24 @@ import kotlinx.coroutines.runBlocking
 
 /** ファイル読込とテキスト組版。呼び出し元の直列executor上で実行する。 */
 internal class PreviewContentLoader(private val context: Context, private val imageLoadJob: Job, private val pdf: PdfPreviewRenderer) {
+    private data class TextContent(val uri: Uri, val encoding: TextEncoding, val byteCount: Long, val decoded: DecodedPreviewText)
+    private var textContent: TextContent? = null
+
+    private fun readText(uri: Uri, encoding: TextEncoding, checkActive: () -> Unit): TextContent {
+        checkActive()
+        textContent?.let { if (it.uri == uri && it.encoding == encoding) return it }
+        val bytes = context.contentResolver.openInputStream(uri)?.use { stream ->
+            readPreviewText(stream, checkActive)
+        } ?: throw IOException("ファイルを開けません。")
+        val decoded = decodePreviewText(bytes, encoding)
+        if (decoded.text.isEmpty()) throw IOException("このtxtファイルは空です。")
+        checkActive()
+        // プレビューの同じ本文を保持し、幅変更では組版だけをやり直す。
+        return TextContent(uri, encoding, bytes.size.toLong(), decoded).also { textContent = it }
+    }
+
+    fun clear() { textContent = null }
+
     fun load(file: PreviewFile, encoding: TextEncoding, viewWidth: Int, checkActive: () -> Unit,
         onTextInfo: (Long, TextEncoding?) -> Unit): PreviewScene {
         val uri = Uri.parse(file.uri)
@@ -33,14 +51,9 @@ internal class PreviewContentLoader(private val context: Context, private val im
                         PreviewScene.Image(result.drawable.toBitmap())
                     }
                     DocumentKind.TEXT -> {
-                        val bytes = context.contentResolver.openInputStream(uri)?.use { stream ->
-                            readPreviewText(stream) { checkActive() }
-                        } ?: throw IOException("ファイルを開けません。")
-                        onTextInfo(bytes.size.toLong(), null)
-                        val decoded = decodePreviewText(bytes, encoding)
-                        onTextInfo(bytes.size.toLong(), decoded.encoding)
-                        val text = decoded.text
-                        if (text.isEmpty()) throw IOException("このtxtファイルは空です。")
+                        val content = readText(uri, encoding, checkActive)
+                        onTextInfo(content.byteCount, content.decoded.encoding)
+                        val text = content.decoded.text
                         val padding = 16 * context.resources.displayMetrics.density
                         val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
                             color = Color.BLACK

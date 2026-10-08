@@ -17,6 +17,7 @@ interface LibraryFolderRepository {
     suspend fun removeFolder(uri: String)
     suspend fun rootDirectories(): List<BrowsableDirectory>
     suspend fun getContent(directoryPath: String): FileExplorerContent
+    suspend fun getTracksInDirectory(directoryPath: String): List<Track>
     suspend fun getTracks(ids: List<Long>): List<Track>
 }
 

@@ -4,6 +4,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import com.yt8492.asmrplayer.data.datasource.document.FolderDocument
 import com.yt8492.asmrplayer.data.local.entity.LibraryDocumentEntity
+import com.yt8492.asmrplayer.data.local.dao.LibraryDirectorySnapshot
 import com.yt8492.asmrplayer.data.model.BrowsableDirectory
 import com.yt8492.asmrplayer.data.model.DocumentFile
 import com.yt8492.asmrplayer.data.model.FileExplorerContent
@@ -29,11 +30,10 @@ internal fun LibraryDocumentEntity.toTrack() = Track(
     durationMs = durationMs, fileSizeBytes = size, trackNumber = trackNumber, uri = documentUri(),
 )
 
-internal fun directoryContent(path: DocumentPath, documents: List<LibraryDocumentEntity>): FileExplorerContent {
-    val current = documents.firstOrNull { it.documentId == path.documentId }
-        ?: throw java.io.IOException("フォルダが見つかりません。設定から再読み込みしてください。")
-    val children = documents.filter { it.parentId == path.documentId }.sortedBy { it.name.lowercase() }
-    val childCounts = documents.groupingBy { it.parentId }.eachCount()
+internal fun directoryContent(path: DocumentPath, snapshot: LibraryDirectorySnapshot): FileExplorerContent {
+    val current = snapshot.current
+    val children = snapshot.children.sortedBy { it.name.lowercase() }
+    val childCounts = snapshot.childCounts
     return FileExplorerContent(
         currentPath = path.encode(), directoryTitle = current.name,
         parentPath = current.parentId?.let { DocumentPath(path.treeUri, it).encode() } ?: "",

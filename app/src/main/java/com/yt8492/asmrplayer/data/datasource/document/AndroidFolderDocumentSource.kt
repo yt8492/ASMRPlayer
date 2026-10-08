@@ -15,9 +15,8 @@ import kotlinx.coroutines.ensureActive
 internal class AndroidFolderDocumentSource(private val context: Context) : FolderDocumentSource {
     private val resolver = context.contentResolver
 
-    override fun hasPermission(uri: String): Boolean = resolver.persistedUriPermissions.any {
-        it.uri.toString() == uri && it.isReadPermission
-    }
+    override fun readableTreeUris(): Set<String> = resolver.persistedUriPermissions
+        .filter { it.isReadPermission }.mapTo(mutableSetOf()) { it.uri.toString() }
 
     override fun persistPermission(uri: Uri) {
         resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)

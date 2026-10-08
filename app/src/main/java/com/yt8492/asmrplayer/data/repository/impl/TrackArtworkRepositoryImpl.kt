@@ -24,7 +24,7 @@ internal class TrackArtworkRepositoryImpl(
     }
 
     override suspend fun isImageUriUsed(imageUri: Uri): Boolean = withContext(ioDispatcher) {
-        trackArtworkDao.countByImageUri(imageUri.toString()) > 0
+        trackArtworkDao.isImageUriUsed(imageUri.toString())
     }
 
     override suspend fun saveTrackArtwork(trackId: Long, imageUri: Uri) = withContext(ioDispatcher) {
